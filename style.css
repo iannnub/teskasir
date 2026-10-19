@@ -1,0 +1,292 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --color-bg: #09090b; /* Zinc 950 */
+  --color-surface: #18181b; /* Zinc 900 */
+  --color-surface-glass: rgba(24, 24, 27, 0.75);
+  --color-border-glass: rgba(255, 255, 255, 0.08);
+  --color-primary: #d4af37; /* Premium Gold */
+  --color-primary-hover: #f3e5ab; /* Lighter Gold */
+  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: #f4f4f5; /* Zinc 100 */
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-glass);
+}
+
+.glass-card {
+  background: rgba(39, 39, 42, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.glass-card:active {
+  transform: scale(0.98);
+}
+
+/* Pulses for Stock status */
+.pulse-green {
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: pulse-green-anim 2s infinite;
+}
+
+.pulse-amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  animation: pulse-amber-anim 2s infinite;
+}
+
+.pulse-red {
+  background-color: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: pulse-red-anim 2s infinite;
+}
+
+@keyframes pulse-green-anim {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes pulse-amber-anim {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes pulse-red-anim {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Drawer / Bottom Sheet Styles */
+.bottom-sheet-overlay {
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity 0.3s ease-in-out;
+}
+
+.bottom-sheet {
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  max-height: 90vh;
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: #121214;
+}
+
+/* Custom Hide Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Gold Gradient Button */
+.btn-gold {
+  background: linear-gradient(135deg, #d4af37 0%, #aa7c11 100%);
+  color: #000;
+  font-weight: 600;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+.btn-gold:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.btn-secondary:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Active Category Chip */
+.chip-active {
+  background-color: #d4af37;
+  color: #000;
+  font-weight: 600;
+}
+
+/* Barcode visual */
+.barcode-line {
+  height: 60px;
+  background-color: #000;
+  margin: 0 1px;
+}
+
+/* CSS Patch: Prevent closed drawer overlays from blocking page clicks */
+#detail-drawer.pointer-events-none *,
+#cart-drawer.pointer-events-none * {
+  pointer-events: none !important;
+}
+
+/* ==================== POS SIDE PANEL & FLEX LAYOUT ==================== */
+#pos-layout {
+  display: flex;
+  width: 100%;
+  position: relative;
+  overflow-x: hidden;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#catalog-area {
+  flex: 1 1 100%;
+  width: 100%;
+  transition: flex 0.35s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+#order-panel {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(100%);
+  pointer-events: none;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              width 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.25s ease;
+  overflow: hidden;
+  box-shadow: -4px 0 25px rgba(0, 0, 0, 0.08);
+}
+
+/* When POS is active (Menu selected / Cart has items) */
+#pos-layout.pos-active #catalog-area {
+  flex: 1 1 calc(100% - 380px);
+}
+
+@media (min-width: 1024px) {
+  #pos-layout.pos-active #catalog-area {
+    flex: 1 1 calc(100% - 420px);
+  }
+}
+
+#pos-layout.pos-active #order-panel {
+  width: 100%;
+  max-width: 100%;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+  #order-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    z-index: 50;
+  }
+}
+
+@media (min-width: 768px) {
+  #order-panel {
+    position: sticky;
+    top: 53px;
+    height: calc(100vh - 53px);
+  }
+  
+  #pos-layout.pos-active #order-panel {
+    width: 380px;
+    max-width: 380px;
+  }
+}
+
+@media (min-width: 1024px) {
+  #pos-layout.pos-active #order-panel {
+    width: 420px;
+    max-width: 420px;
+  }
+}
+
+/* Smooth product item add keyframes */
+@keyframes cartItemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-cart-item {
+  animation: cartItemSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media print {
+    /* Sembunyikan semua elemen di halaman web */
+    body * {
+        visibility: hidden;
+    }
+    /* Tampilkan hanya area cetak struk */
+    #receipt-print-area, #receipt-print-area * {
+        visibility: visible;
+    }
+    #receipt-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+    }
+}

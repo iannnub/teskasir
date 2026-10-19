@@ -1,0 +1,1223 @@
+// Premium Kasir Cafe Dataset dengan Varian Suhu Ice / Hot
+const DEFAULT_PRODUCTS = [
+  {
+    id: 'aetheria',
+    name: 'AMERICANO',
+    category: 'Coffe',
+    image: 'assets/americano.png',
+    description: 'Kopi espresso racikan khas cafe dengan keharuman aroma yang manis dan lembut.',
+    badge: 'Ready Stock di Toko',
+    badgeClass: 'pulse-green',
+    isReady: true,
+    variants: [
+      { size: 'Ice', price: 25000, stock: 15, label: 'Ready Stock (15 unit)' },
+      { size: 'Hot', price: 22000, stock: 10, label: 'Ready Stock (10 unit)' }
+    ]
+  },
+  {
+    id: 'oud-nocturne',
+    name: 'MOCHA LATTE',
+    category: 'Coklat',
+    image: 'assets/Mocha Latte.png',
+    description: 'Coklat hangat/dingin premium dengan perpaduan rempah manis nan kaya rasa.',
+    badge: 'Ready Stock di Toko',
+    badgeClass: 'pulse-green',
+    isReady: true,
+    variants: [
+      { size: 'Ice', price: 28000, stock: 12, label: 'Ready Stock (12 unit)' },
+      { size: 'Hot', price: 25000, stock: 8, label: 'Ready Stock (8 unit)' }
+    ]
+  },
+  {
+    id: 'thalassa',
+    name: 'CARBONARA',
+    category: 'Makanan',
+    image: 'assets/carbonara.png',
+    description: 'Kesegaran pasta gurih berkrim spesial khas resep dapur cafe.',
+    badge: 'Ready Stock di Toko',
+    badgeClass: 'pulse-green',
+    isReady: true,
+    variants: [
+      { size: 'Ice', price: 24000, stock: 15, label: 'Ready Stock' },
+      { size: 'Hot', price: 20000, stock: 10, label: 'Ready Stock' }
+    ]
+  },
+  {
+    id: 'solstice',
+    name: 'FRENCH FRIES',
+    category: 'Camilan',
+    image: 'assets/french fries.png',
+    description: 'Camilan kentang goreng renyah dengan taburan bumbu gurih spesial.',
+    badge: 'Ready Stock di Toko',
+    badgeClass: 'pulse-green',
+    isReady: true,
+    variants: [
+      { size: 'Ice', price: 22000, stock: 18, label: 'Ready Stock' },
+      { size: 'Hot', price: 18000, stock: 10, label: 'Ready Stock' }
+    ]
+  }
+];
+
+// Helper Muat Produk dari LocalStorage (Dengan Migrasi Varian & Image Fix Khusus Cafe)
+function loadProductsFromStorage() {
+  let stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem('cafe_store_products'));
+  } catch (e) {
+    stored = null;
+  }
+
+  if (!stored || !Array.isArray(stored) || stored.some(p => p.variants && p.variants.some(v => v.size && v.size.includes('ml')))) {
+    localStorage.setItem('cafe_store_products', JSON.stringify(DEFAULT_PRODUCTS));
+    stored = DEFAULT_PRODUCTS;
+  } else {
+    let updated = false;
+    stored.forEach(p => {
+      if (p.image === 'assets/americano.jpg' || !p.image || p.image.includes('perfume')) {
+        if (p.id === 'aetheria') p.image = 'assets/americano.png';
+        else if (p.id === 'oud-nocturne') p.image = 'assets/Mocha Latte.png';
+        else if (p.id === 'thalassa') p.image = 'assets/carbonara.png';
+        else if (p.id === 'solstice') p.image = 'assets/french fries.png';
+        else p.image = 'assets/americano.png';
+        updated = true;
+      }
+    });
+    if (updated) {
+      localStorage.setItem('cafe_store_products', JSON.stringify(stored));
+    }
+  }
+  return stored;
+}
+
+// Helper Muat Kategori dari LocalStorage (Key: 'kollabora_kategori')
+const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
+
+function getKollaboraCategories() {
+  try {
+    const raw = localStorage.getItem('kollabora_kategori');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Gagal membaca kollabora_kategori:', e);
+  }
+  // Set default jika belum ada di localStorage
+  localStorage.setItem('kollabora_kategori', JSON.stringify(DEFAULT_CATEGORIES));
+  return [...DEFAULT_CATEGORIES];
+}
+
+let PRODUCTS = loadProductsFromStorage();
+
+// Helper Storage Transaksi Konsisten (Key: 'transactions')
+function getTransactionsFromStorage() {
+  let txs = [];
+  try {
+    const raw = localStorage.getItem('transactions');
+    if (raw) txs = JSON.parse(raw);
+  } catch (e) { console.error(e); }
+
+  if (!Array.isArray(txs) || txs.length === 0) {
+    try {
+      const oldRaw = localStorage.getItem('cafe_orders');
+      if (oldRaw) {
+        const oldOrders = JSON.parse(oldRaw);
+        if (Array.isArray(oldOrders) && oldOrders.length > 0) {
+          txs = oldOrders;
+          localStorage.setItem('transactions', JSON.stringify(txs));
+        }
+      }
+    } catch (e) { console.error(e); }
+  }
+  return txs;
+}
+
+function saveTransactionToStorage(newTx) {
+  const txs = getTransactionsFromStorage();
+  txs.push(newTx);
+  localStorage.setItem('transactions', JSON.stringify(txs));
+  localStorage.setItem('cafe_orders', JSON.stringify(txs));
+}
+
+// Inisialisasi Database Order O2O
+function initDatabase() {
+  getTransactionsFromStorage();
+}
+
+initDatabase();
+
+// App State
+let state = {
+  myOrderIds: JSON.parse(localStorage.getItem('buyer_order_ids')) || [],
+  selectedCategory: 'Semua',
+  searchQuery: '',
+  onlyReady: false,
+  activeProduct: null,
+  activeVariant: null,
+  activeMixIngredients: []
+};
+
+// POS Cart State (Side Panel Kanan)
+let posCart = [];
+let selectedPaymentMethod = 'Cash';
+
+// Elements
+const productGrid = document.getElementById('product-grid');
+const searchInput = document.getElementById('search-input');
+const categoryChips = document.getElementById('category-chips');
+const readyFilterToggle = document.getElementById('ready-filter-toggle');
+const cartFloatingBtn = document.getElementById('cart-floating-btn');
+const cartBadge = document.getElementById('cart-badge');
+
+// Bottom Sheet Elements
+const detailDrawer = document.getElementById('detail-drawer');
+const detailOverlay = document.getElementById('detail-overlay');
+const detailSheet = document.getElementById('detail-sheet');
+
+const cartDrawer = document.getElementById('cart-drawer');
+const cartOverlay = document.getElementById('cart-overlay');
+const cartSheet = document.getElementById('cart-sheet');
+
+// Format Rupiah helper
+function formatRupiah(amount) {
+  return 'Rp ' + (amount || 0).toLocaleString('id-ID');
+}
+
+// Toast Notifikasi Visual
+function showToast(msg) {
+  let toast = document.getElementById('pos-toast-notification');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'pos-toast-notification';
+    toast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 z-[110] bg-zinc-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl transition-all duration-300 opacity-0 pointer-events-none flex items-center space-x-2 border border-zinc-700';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `<span>${msg}</span>`;
+  toast.classList.remove('opacity-0', 'pointer-events-none');
+
+  if (window.toastTimeout) clearTimeout(window.toastTimeout);
+  window.toastTimeout = setTimeout(() => {
+    toast.classList.add('opacity-0', 'pointer-events-none');
+  }, 2500);
+}
+
+// Update floating badge for buyer orders status
+function updateCartBadge() {
+  const orders = getTransactionsFromStorage();
+  const activeCount = orders.filter(o => state.myOrderIds.includes(o.id) && (o.status === 'pending' || o.status === 'proses')).length;
+
+  if (state.myOrderIds.length > 0 && cartBadge && cartFloatingBtn) {
+    if (activeCount > 0) {
+      cartBadge.textContent = activeCount;
+      cartBadge.classList.remove('hidden');
+      cartFloatingBtn.classList.remove('translate-y-24');
+    } else {
+      cartBadge.classList.add('hidden');
+      cartFloatingBtn.classList.remove('translate-y-24');
+    }
+  } else if (cartBadge && cartFloatingBtn) {
+    cartBadge.classList.add('hidden');
+    cartFloatingBtn.classList.add('translate-y-24');
+  }
+}
+
+function reloadProductsFromStorage() {
+  PRODUCTS = loadProductsFromStorage();
+}
+
+// ==================== LOGIKA POS SIDE PANEL (PANEL KANAN) ====================
+
+function openOrderPanel() {
+  const layout = document.getElementById('pos-layout');
+  if (layout) layout.classList.add('pos-active');
+}
+
+function closeOrderPanel() {
+  const layout = document.getElementById('pos-layout');
+  if (layout) layout.classList.remove('pos-active');
+}
+
+function clearPosCart() {
+  posCart = [];
+  selectedPaymentMethod = 'Cash';
+  renderPosCart();
+  initPaymentMethodSelector();
+  closeOrderPanel();
+  showToast('Daftar pesanan dibersihkan');
+}
+
+function initPaymentMethodSelector() {
+  const paymentBtns = document.querySelectorAll('.pos-payment-btn');
+  paymentBtns.forEach(btn => {
+    const method = btn.getAttribute('data-method');
+    if (method === selectedPaymentMethod) {
+      btn.className = 'pos-payment-btn py-1.5 px-2 rounded-lg text-xs font-semibold border border-amber-500 bg-amber-50 text-amber-800 transition-all text-center cursor-pointer';
+    } else {
+      btn.className = 'pos-payment-btn py-1.5 px-2 rounded-lg text-xs font-semibold border border-zinc-200 bg-white text-zinc-600 transition-all text-center cursor-pointer';
+    }
+
+    btn.onclick = () => {
+      selectedPaymentMethod = btn.getAttribute('data-method') || 'Cash';
+      initPaymentMethodSelector();
+      showToast(`Metode Pembayaran: ${selectedPaymentMethod}`);
+    };
+  });
+}
+
+function addToPosCart(product, variant = null, ratioNotes = '', mixDetails = null) {
+  reloadProductsFromStorage();
+  const freshProduct = PRODUCTS.find(p => p.id === product.id) || product;
+
+  if (!variant) {
+    variant = freshProduct.variants.find(v => v.stock > 0) || freshProduct.variants[0];
+  }
+
+  if (variant.stock <= 0) {
+    showToast(`Stok ${freshProduct.name} (${variant.size}) sedang habis!`);
+    return;
+  }
+
+  const existingItem = posCart.find(i =>
+    i.productId === freshProduct.id &&
+    i.variantSize === variant.size &&
+    i.ratioNotes === ratioNotes
+  );
+
+  if (existingItem) {
+    if (existingItem.quantity + 1 > variant.stock) {
+      showToast(`Stok ${freshProduct.name} tersisa ${variant.stock} unit!`);
+      return;
+    }
+    existingItem.quantity += 1;
+  } else {
+    posCart.push({
+      cartId: 'CART-' + Math.random().toString(36).substr(2, 9),
+      productId: freshProduct.id,
+      name: freshProduct.name,
+      image: freshProduct.image,
+      category: freshProduct.category,
+      variantSize: variant.size,
+      price: variant.price,
+      quantity: 1,
+      ratioNotes: ratioNotes,
+      mixDetails: mixDetails
+    });
+  }
+
+  openOrderPanel();
+  renderPosCart();
+  showToast(`+ ${freshProduct.name} (${variant.size}) ditambahkan`);
+}
+
+function renderPosCart() {
+  const itemsContainer = document.getElementById('pos-cart-items');
+  const countBadge = document.getElementById('pos-cart-count-badge');
+  const subtotalEl = document.getElementById('pos-subtotal-price');
+  const totalEl = document.getElementById('pos-total-price');
+  const checkoutBtn = document.getElementById('pos-checkout-btn');
+
+  if (!itemsContainer) return;
+
+  const totalItems = posCart.reduce((sum, i) => sum + i.quantity, 0);
+  const totalPrice = posCart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+  if (countBadge) countBadge.textContent = totalItems;
+  if (subtotalEl) subtotalEl.textContent = formatRupiah(totalPrice);
+  if (totalEl) totalEl.textContent = formatRupiah(totalPrice);
+
+  if (posCart.length === 0) {
+    itemsContainer.innerHTML = `
+      <div class="py-16 text-center text-zinc-400 flex flex-col items-center justify-center">
+        <div class="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 mb-3 border border-amber-200/50">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+          </svg>
+        </div>
+        <p class="text-sm font-bold text-zinc-700 font-display">Belum ada menu dipilih</p>
+        <p class="text-xs text-zinc-500 mt-1 max-w-[220px]">Klik menu apapun dari katalog di sebelah kiri untuk langsung menambah pesanan.</p>
+      </div>
+    `;
+    if (checkoutBtn) {
+      checkoutBtn.disabled = true;
+      checkoutBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+    return;
+  }
+
+  if (checkoutBtn) {
+    checkoutBtn.disabled = false;
+    checkoutBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+  }
+
+  itemsContainer.innerHTML = '';
+
+  posCart.forEach(item => {
+    const prod = PRODUCTS.find(p => p.id === item.productId);
+    const variants = prod ? prod.variants : [{ size: item.variantSize, price: item.price }];
+
+    const variantOptionsHtml = variants.map(v =>
+      `<option value="${v.size}" ${v.size === item.variantSize ? 'selected' : ''}>${v.size} (${formatRupiah(v.price)})</option>`
+    ).join('');
+
+    const itemCard = document.createElement('div');
+    itemCard.className = 'bg-zinc-50 border border-zinc-200 rounded-xl p-3 flex space-x-3 items-center animate-cart-item relative group shadow-sm';
+    itemCard.innerHTML = `
+      <img src="${item.image || 'assets/americano.png'}" alt="${item.name}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-14 h-14 object-cover rounded-lg border border-zinc-200 shrink-0 bg-white">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-extrabold text-zinc-900 truncate">${item.name}</h4>
+          <button onclick="removePosCartItem('${item.cartId}')" class="text-zinc-400 hover:text-red-500 p-1 transition-colors cursor-pointer" title="Hapus item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+        
+        <div class="flex items-center space-x-1.5 mt-1">
+          <span class="text-[10px] text-zinc-500 font-medium">Suhu:</span>
+          <select onchange="updatePosCartItemVariant('${item.cartId}', this.value)" class="bg-white border border-zinc-200 rounded-md text-[10px] text-zinc-800 py-0.5 px-1 font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+            ${variantOptionsHtml}
+          </select>
+        </div>
+
+        ${item.ratioNotes ? `<p class="text-[9px] text-amber-600 font-medium italic mt-0.5 truncate">${item.ratioNotes}</p>` : ''}
+
+        <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-zinc-200/60">
+          <span class="text-xs font-bold text-amber-600">${formatRupiah(item.price * item.quantity)}</span>
+          
+          <div class="flex items-center space-x-1.5 bg-white border border-zinc-200 rounded-lg px-1.5 py-0.5 shadow-sm">
+            <button onclick="updatePosCartQuantity('${item.cartId}', -1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">-</button>
+            <span class="text-xs font-bold text-zinc-900 w-5 text-center">${item.quantity}</span>
+            <button onclick="updatePosCartQuantity('${item.cartId}', 1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">+</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    itemsContainer.appendChild(itemCard);
+  });
+}
+
+function updatePosCartQuantity(cartId, delta) {
+  const item = posCart.find(i => i.cartId === cartId);
+  if (!item) return;
+
+  const newQty = item.quantity + delta;
+  if (newQty <= 0) {
+    removePosCartItem(cartId);
+  } else {
+    const prod = PRODUCTS.find(p => p.id === item.productId);
+    const variant = prod ? prod.variants.find(v => v.size === item.variantSize) : null;
+    if (variant && newQty > variant.stock) {
+      showToast(`Stok ${item.name} (${item.variantSize}) hanya tersisa ${variant.stock}!`);
+      return;
+    }
+    item.quantity = newQty;
+    renderPosCart();
+  }
+}
+
+function updatePosCartItemVariant(cartId, newSize) {
+  const item = posCart.find(i => i.cartId === cartId);
+  if (!item) return;
+
+  const prod = PRODUCTS.find(p => p.id === item.productId);
+  const variant = prod ? prod.variants.find(v => v.size === newSize) : null;
+  if (variant) {
+    if (variant.stock <= 0) {
+      showToast(`Varian ${newSize} sedang habis!`);
+      renderPosCart();
+      return;
+    }
+    item.variantSize = variant.size;
+    item.price = variant.price;
+    renderPosCart();
+  }
+}
+
+function removePosCartItem(cartId) {
+  posCart = posCart.filter(i => i.cartId !== cartId);
+  renderPosCart();
+  if (posCart.length === 0) {
+    closeOrderPanel();
+  }
+}
+
+function checkoutPosOrder() {
+  reloadProductsFromStorage();
+
+  if (posCart.length === 0) {
+    showToast('Daftar pesanan masih kosong!');
+    return;
+  }
+
+  const custInput = document.getElementById('pos-customer-name');
+  const customerName = custInput ? custInput.value.trim() : '';
+
+  if (!customerName) {
+    showToast('Harap masukkan Nama Pelanggan / No. Meja!');
+    if (custInput) custInput.focus();
+    return;
+  }
+
+  const orderNotes = document.getElementById('pos-order-notes')?.value.trim() || '';
+
+  let stockFail = false;
+  const stockItemsToDeduct = [];
+
+  for (const cartItem of posCart) {
+    const prod = PRODUCTS.find(p => p.id === cartItem.productId);
+    const variant = prod ? prod.variants.find(v => v.size === cartItem.variantSize) : null;
+
+    if (!variant || variant.stock < cartItem.quantity) {
+      showToast(`Stok ${cartItem.name} (${cartItem.variantSize}) tidak mencukupi!`);
+      stockFail = true;
+      break;
+    }
+    stockItemsToDeduct.push({ product: prod, variant: variant, qty: cartItem.quantity });
+  }
+
+  if (stockFail) return;
+
+  stockItemsToDeduct.forEach(item => {
+    item.variant.stock -= item.qty;
+    if (item.variant.stock === 0) {
+      item.variant.label = 'Habis';
+    } else if (item.variant.stock <= 5) {
+      item.variant.label = `Sisa ${item.variant.stock} unit`;
+    } else {
+      item.variant.label = 'Ready Stock';
+    }
+  });
+  localStorage.setItem('cafe_store_products', JSON.stringify(PRODUCTS));
+
+  const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
+  const totalPrice = posCart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+  const ratioNotesSummary = posCart.map(i => `${i.name} (${i.variantSize}) x${i.quantity}`).join(', ') + (orderNotes ? ` | Catatan: ${orderNotes}` : '');
+
+  const dbDetails = JSON.parse(localStorage.getItem('cafe_order_details')) || [];
+  const receiptItems = [];
+
+  posCart.forEach(item => {
+    const detailObj = {
+      id: 'DET-' + Math.floor(100000 + Math.random() * 900000),
+      order_id: orderId,
+      product_id: item.productId,
+      product_name: item.name,
+      variant_size: item.variantSize,
+      price: item.price,
+      quantity: item.quantity,
+      ratio: '100'
+    };
+    dbDetails.push(detailObj);
+    receiptItems.push(detailObj);
+  });
+  localStorage.setItem('cafe_order_details', JSON.stringify(dbDetails));
+
+  const newTransaction = {
+    id: orderId,
+    date: new Date().toISOString(),
+    customer_name: customerName,
+    total_price: totalPrice,
+    status: 'selesai',
+    metode_pembayaran: selectedPaymentMethod,
+    ratio_notes: ratioNotesSummary,
+    items: receiptItems
+  };
+
+  saveTransactionToStorage(newTransaction);
+
+  state.myOrderIds.push(orderId);
+  localStorage.setItem('buyer_order_ids', JSON.stringify(state.myOrderIds));
+
+  posCart = [];
+  renderPosCart();
+  closeOrderPanel();
+  if (custInput) custInput.value = '';
+  if (document.getElementById('pos-order-notes')) document.getElementById('pos-order-notes').value = '';
+
+  renderProducts();
+  updateCartBadge();
+
+  showToast(`Transaksi ${orderId} berhasil! Struk siap dicetak.`);
+
+  showReceipt(newTransaction, receiptItems);
+}
+
+// Render Category Chips Dinamis dari LocalStorage (kollabora_kategori)
+function renderCategoryChips() {
+  const container = document.getElementById('category-chips');
+  if (!container) return;
+
+  const storedCategories = getKollaboraCategories();
+  const categories = ['Semua', ...storedCategories];
+
+  // Jika selectedCategory saat ini tidak ada lagi di daftar, reset ke 'Semua'
+  if (!categories.includes(state.selectedCategory)) {
+    state.selectedCategory = 'Semua';
+  }
+
+  container.innerHTML = categories.map(cat => {
+    const isActive = state.selectedCategory === cat;
+    return `
+      <button type="button" class="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${isActive
+        ? 'bg-amber-500 text-white shadow-sm'
+        : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+      }">
+        ${cat}
+      </button>
+    `;
+  }).join('');
+
+  const chips = container.querySelectorAll('button');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      state.selectedCategory = chip.textContent.trim();
+      renderCategoryChips();
+      renderProducts();
+    });
+  });
+}
+
+// Render Product Catalog
+function renderProducts() {
+  reloadProductsFromStorage();
+  if (!productGrid) return;
+  productGrid.innerHTML = '';
+
+  const filtered = PRODUCTS.filter(p => {
+    if (state.selectedCategory !== 'Semua' && p.category !== state.selectedCategory) return false;
+    if (state.searchQuery && !p.name.toLowerCase().includes(state.searchQuery.toLowerCase())) return false;
+    if (state.onlyReady) {
+      const hasStock = p.variants.some(v => v.stock > 0);
+      if (!hasStock) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    productGrid.innerHTML = `
+      <div class="col-span-2 sm:col-span-3 lg:col-span-4 py-12 text-center text-zinc-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="font-medium text-sm">Tidak ada menu yang cocok</p>
+        <p class="text-xs mt-1">Coba sesuaikan kata kunci atau filter Anda</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(p => {
+    const prices = p.variants.map(v => v.price);
+    const minPrice = Math.min(...prices);
+
+    const totalStock = p.variants.reduce((sum, v) => sum + v.stock, 0);
+    const badgeText = totalStock === 0 ? 'Habis' : p.badge;
+    const badgeClass = totalStock === 0 ? 'bg-zinc-600' : p.badgeClass;
+
+    const card = document.createElement('div');
+    card.className = 'glass-card rounded-2xl overflow-hidden flex flex-col group cursor-pointer border border-zinc-200/60 hover:border-amber-500/50 transition-all shadow-sm bg-white text-zinc-900';
+    card.innerHTML = `
+      <div class="relative aspect-[4/3] sm:aspect-[4/5] bg-zinc-100 overflow-hidden">
+        <img src="${p.image || 'assets/americano.png'}" alt="${p.name}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        
+        <div class="absolute top-2 left-2 flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/60 backdrop-blur-md border border-white/10">
+          <span class="w-1.5 h-1.5 rounded-full ${badgeClass}"></span>
+          <span class="text-white">${badgeText}</span>
+        </div>
+
+        <button class="open-detail-btn absolute top-2 right-2 p-1.5 rounded-full bg-white/80 backdrop-blur-md text-zinc-700 hover:text-amber-600 hover:bg-white shadow transition-all cursor-pointer" title="Custom Mix / Detail">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </button>
+      </div>
+      <div class="p-3 flex-1 flex flex-col justify-between">
+        <div>
+          <span class="text-[10px] text-amber-600 uppercase tracking-widest font-semibold">${p.category}</span>
+          <h3 class="text-sm sm:text-base font-bold text-zinc-900 mt-0.5 leading-snug truncate">${p.name}</h3>
+        </div>
+
+        <div class="mt-2 pt-2 border-t border-zinc-100 flex items-center justify-between">
+          <div>
+            <p class="text-[9px] text-zinc-400 font-medium">Mulai Dari</p>
+            <p class="text-xs sm:text-sm font-extrabold text-zinc-950">${formatRupiah(minPrice)}</p>
+          </div>
+          
+          <button class="add-to-cart-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm active:scale-95 transition-all flex items-center space-x-1 cursor-pointer">
+            <span>+ Pesan</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const addBtn = card.querySelector('.add-to-cart-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addToPosCart(p);
+      });
+    }
+
+    const detailBtn = card.querySelector('.open-detail-btn');
+    if (detailBtn) {
+      detailBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openProductDetail(p);
+      });
+    }
+
+    card.addEventListener('click', () => {
+      addToPosCart(p);
+    });
+
+    productGrid.appendChild(card);
+  });
+}
+
+function openProductDetail(product) {
+  reloadProductsFromStorage();
+
+  const freshProduct = PRODUCTS.find(p => p.id === product.id) || product;
+  state.activeProduct = freshProduct;
+
+  const defaultVar = freshProduct.variants.find(v => v.stock > 0) || freshProduct.variants[0];
+  state.activeVariant = defaultVar;
+
+  const drawerImg = document.getElementById('drawer-img');
+  if (drawerImg) {
+    drawerImg.src = freshProduct.image || 'assets/americano.png';
+    drawerImg.onerror = function () {
+      this.onerror = null;
+      this.src = 'assets/americano.png';
+    };
+  }
+
+  if (document.getElementById('drawer-name')) document.getElementById('drawer-name').textContent = freshProduct.name;
+  if (document.getElementById('drawer-category')) document.getElementById('drawer-category').textContent = freshProduct.category;
+  if (document.getElementById('drawer-desc')) document.getElementById('drawer-desc').textContent = freshProduct.description;
+
+  renderVariantSelector();
+  updateDetailPriceAndStock();
+
+  const mixToggle = document.getElementById('mix-toggle');
+  if (mixToggle) {
+    mixToggle.checked = false;
+    const mixSec = document.getElementById('mix-section-content');
+    if (mixSec) mixSec.classList.add('hidden');
+  }
+  state.activeMixIngredients = [];
+  if (document.getElementById('customer-name-input')) document.getElementById('customer-name-input').value = '';
+  if (document.getElementById('mix-notes')) document.getElementById('mix-notes').value = '';
+
+  populateMixDropdown();
+  renderMixIngredients();
+
+  if (detailDrawer) detailDrawer.classList.remove('pointer-events-none');
+  if (detailOverlay) detailOverlay.classList.remove('opacity-0');
+  if (detailSheet) detailSheet.classList.remove('translate-y-full');
+
+  document.body.style.overflow = 'hidden';
+}
+
+function closeProductDetail() {
+  if (detailSheet) detailSheet.classList.add('translate-y-full');
+  if (detailOverlay) detailOverlay.classList.add('opacity-0');
+  setTimeout(() => {
+    if (detailDrawer) detailDrawer.classList.add('pointer-events-none');
+    document.body.style.overflow = '';
+  }, 300);
+}
+
+// Render Ice / Hot variant selector
+function renderVariantSelector() {
+  const container = document.getElementById('variant-chips-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  state.activeProduct.variants.forEach(v => {
+    const isSelected = state.activeVariant.size === v.size;
+    const isOutOfStock = v.stock === 0;
+
+    const btn = document.createElement('button');
+    btn.className = `flex-1 py-2 px-1 text-center rounded-xl text-xs font-semibold border transition-all duration-200 cursor-pointer ${isSelected
+      ? 'border-amber-500 bg-amber-50 text-amber-800 font-bold shadow-sm'
+      : isOutOfStock
+        ? 'border-zinc-200 bg-zinc-100 text-zinc-400'
+        : 'border-zinc-200 bg-white text-zinc-700 hover:border-amber-300'
+      } ${isOutOfStock ? 'line-through' : ''}`;
+    btn.innerHTML = `
+      <div>${v.size}</div>
+      <div class="text-[9px] font-normal ${isSelected ? 'text-amber-700 font-semibold' : isOutOfStock ? 'text-zinc-400' : 'text-zinc-500'}">${v.stock > 0 ? `${v.stock} ready` : 'Habis'}</div>
+    `;
+
+    btn.addEventListener('click', () => {
+      state.activeVariant = v;
+      renderVariantSelector();
+      updateDetailPriceAndStock();
+    });
+
+    container.appendChild(btn);
+  });
+}
+
+function updateDetailPriceAndStock() {
+  const v = state.activeVariant;
+  const priceEl = document.getElementById('drawer-price');
+  const actionBtn = document.getElementById('drawer-action-btn');
+  const waBtn = document.getElementById('drawer-wa-btn');
+
+  if (priceEl) priceEl.textContent = formatRupiah(v.price);
+
+  if (actionBtn && waBtn) {
+    if (v.stock === 0) {
+      actionBtn.disabled = true;
+      actionBtn.className = 'w-full py-3 px-4 rounded-xl text-sm font-semibold bg-zinc-200 text-zinc-500 cursor-not-allowed';
+      actionBtn.innerHTML = 'Stok Habis di Toko';
+      waBtn.classList.remove('hidden');
+      waBtn.innerHTML = `Tanya Stok via WhatsApp`;
+    } else {
+      actionBtn.disabled = false;
+      actionBtn.className = 'w-full py-3 px-4 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95 transition-all cursor-pointer';
+      actionBtn.innerHTML = `Tambahkan ke Pesanan`;
+    }
+  }
+}
+
+function populateMixDropdown() {
+  const select = document.getElementById('add-mix-select');
+  if (!select) return;
+  select.innerHTML = '';
+
+  const addedIds = state.activeMixIngredients.map(item => item.productId);
+  const available = PRODUCTS.filter(p => p.id !== state.activeProduct.id && !addedIds.includes(p.id));
+
+  const addBtn = document.getElementById('add-mix-btn');
+  if (available.length === 0) {
+    select.innerHTML = '<option value="">Semua varian ditambahkan</option>';
+    if (addBtn) addBtn.disabled = true;
+    return;
+  }
+
+  if (addBtn) addBtn.disabled = false;
+  available.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.name} (${p.category})`;
+    select.appendChild(opt);
+  });
+}
+
+function renderMixIngredients() {
+  const container = document.getElementById('mix-ingredients-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const additionalSum = state.activeMixIngredients.reduce((sum, item) => sum + item.ratio, 0);
+  let baseRatio = 100 - additionalSum;
+  if (baseRatio < 0) baseRatio = 0;
+
+  const baseRow = document.createElement('div');
+  baseRow.className = 'flex items-center space-x-2 bg-zinc-100 p-2.5 rounded-xl border border-zinc-200';
+  baseRow.innerHTML = `
+    <span class="text-xs text-zinc-800 flex-1 font-semibold">${state.activeProduct.name} (Utama)</span>
+    <div class="w-20">
+      <input type="number" value="${baseRatio}" readonly class="w-full bg-zinc-200 border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-700 text-center font-bold">
+    </div>
+    <span class="text-zinc-500 text-xs font-semibold px-1">%</span>
+  `;
+  container.appendChild(baseRow);
+
+  state.activeMixIngredients.forEach((ingredient, index) => {
+    const prod = PRODUCTS.find(p => p.id === ingredient.productId);
+    if (!prod) return;
+
+    const row = document.createElement('div');
+    row.className = 'flex items-center space-x-2 bg-zinc-100 p-2.5 rounded-xl border border-zinc-200';
+    row.innerHTML = `
+      <span class="text-xs text-zinc-800 flex-1">${prod.name}</span>
+      <div class="w-20">
+        <input type="number" min="1" max="100" value="${ingredient.ratio}" oninput="updateMixIngredientRatio(${index}, this.value)" class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-800 text-center focus:outline-none focus:border-amber-500 font-semibold" placeholder="%">
+      </div>
+      <span class="text-zinc-500 text-xs font-semibold px-1">%</span>
+      <button type="button" onclick="removeMixIngredient(${index})" class="p-1.5 text-red-500 hover:text-red-700 transition-colors shrink-0 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    `;
+    container.appendChild(row);
+  });
+
+  const totalRatio = baseRatio + additionalSum;
+  const label = document.getElementById('mix-total-ratio-label');
+  if (label) {
+    label.textContent = `${totalRatio}%`;
+    if (totalRatio === 100) {
+      label.className = 'text-green-600 font-bold';
+    } else {
+      label.className = 'text-red-500 font-bold';
+    }
+  }
+}
+
+window.updateMixIngredientRatio = function (index, val) {
+  const numericVal = parseInt(val) || 0;
+  state.activeMixIngredients[index].ratio = numericVal;
+  renderMixIngredients();
+};
+
+window.removeMixIngredient = function (index) {
+  state.activeMixIngredients.splice(index, 1);
+  renderMixIngredients();
+  populateMixDropdown();
+};
+
+function addMixIngredient() {
+  const select = document.getElementById('add-mix-select');
+  if (!select) return;
+  const productId = select.value;
+  if (!productId) return;
+
+  const additionalSum = state.activeMixIngredients.reduce((sum, item) => sum + item.ratio, 0);
+  const remaining = 100 - additionalSum;
+  const defaultRatio = remaining > 10 ? 10 : (remaining > 0 ? remaining : 0);
+
+  state.activeMixIngredients.push({
+    productId: productId,
+    ratio: defaultRatio
+  });
+
+  renderMixIngredients();
+  populateMixDropdown();
+}
+
+function submitOrder() {
+  reloadProductsFromStorage();
+
+  const custInput = document.getElementById('customer-name-input');
+  const customerName = custInput ? custInput.value.trim() : 'Pelanggan Cafe';
+
+  const mixToggle = document.getElementById('mix-toggle');
+  const isMixed = mixToggle && mixToggle.checked;
+
+  let formula = '';
+  const ingredientDetails = [];
+  const stockChecklist = [];
+
+  if (isMixed) {
+    const additionalSum = state.activeMixIngredients.reduce((sum, item) => sum + item.ratio, 0);
+    const baseRatio = 100 - additionalSum;
+
+    if (baseRatio + additionalSum !== 100) {
+      showToast(`Total persentase campuran harus 100% (saat ini ${baseRatio + additionalSum}%)`);
+      return;
+    }
+
+    const primaryProd = PRODUCTS.find(p => p.id === state.activeProduct.id);
+    const primaryVar = primaryProd ? primaryProd.variants.find(v => v.size === state.activeVariant.size) : null;
+    if (!primaryVar || primaryVar.stock < 1) {
+      showToast(`Stok untuk menu ${state.activeProduct.name} (${state.activeVariant.size}) tidak mencukupi!`);
+      return;
+    }
+    stockChecklist.push({ variant: primaryVar, product: primaryProd });
+
+    formula = `${state.activeProduct.name} (${baseRatio}%)`;
+    ingredientDetails.push({
+      id: 'DET-' + Math.floor(100000 + Math.random() * 900000),
+      product_id: state.activeProduct.id,
+      product_name: state.activeProduct.name,
+      variant_size: state.activeVariant.size,
+      price: state.activeVariant.price,
+      quantity: 1,
+      ratio: String(baseRatio)
+    });
+
+    for (let i = 0; i < state.activeMixIngredients.length; i++) {
+      const ing = state.activeMixIngredients[i];
+      const mixProd = PRODUCTS.find(p => p.id === ing.productId);
+      const mixVar = mixProd ? mixProd.variants.find(v => v.size === state.activeVariant.size) || mixProd.variants[0] : null;
+
+      if (!mixVar || mixVar.stock < 1) {
+        showToast(`Stok untuk campuran ${mixProd ? mixProd.name : ''} tidak mencukupi!`);
+        return;
+      }
+
+      stockChecklist.push({ variant: mixVar, product: mixProd });
+      formula += `, ${mixProd.name} (${ing.ratio}%)`;
+      ingredientDetails.push({
+        id: 'DET-' + Math.floor(100000 + Math.random() * 900000),
+        product_id: ing.productId,
+        product_name: mixProd.name,
+        variant_size: mixVar.size,
+        price: mixVar.price,
+        quantity: 1,
+        ratio: String(ing.ratio)
+      });
+    }
+  } else {
+    formula = `${state.activeProduct.name} (100%)`;
+  }
+
+  const posCustInput = document.getElementById('pos-customer-name');
+  if (posCustInput && !posCustInput.value.trim() && customerName) {
+    posCustInput.value = customerName;
+  }
+
+  addToPosCart(
+    state.activeProduct,
+    state.activeVariant,
+    isMixed ? `Custom Mix: ${formula}` : '',
+    isMixed ? ingredientDetails : null
+  );
+
+  closeProductDetail();
+}
+
+// Struk / Receipt Modal Functions
+function showReceipt(transactionData, itemsData) {
+  const modal = document.getElementById('receipt-modal');
+  if (!modal) return;
+
+  const invEl = document.getElementById('receipt-invoice');
+  const dateEl = document.getElementById('receipt-date');
+  const custEl = document.getElementById('receipt-customer');
+  const methodEl = document.getElementById('receipt-method');
+  const totalEl = document.getElementById('receipt-total');
+  const itemsContainer = document.getElementById('receipt-items');
+
+  if (invEl) invEl.textContent = `#${transactionData.id}`;
+  const dateObj = new Date(transactionData.date || new Date());
+  if (dateEl) {
+    dateEl.textContent = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+  }
+
+  if (custEl) custEl.textContent = transactionData.customer_name || 'Pelanggan';
+  if (methodEl) methodEl.textContent = (transactionData.metode_pembayaran || 'Cash').toUpperCase();
+  if (totalEl) totalEl.textContent = formatRupiah(transactionData.total_price);
+
+  if (itemsContainer) {
+    itemsContainer.innerHTML = '';
+    itemsData.forEach(item => {
+      const itemRow = document.createElement('div');
+      itemRow.className = 'flex justify-between font-bold text-xs mt-1';
+      const pName = item.product_name || 'Menu Cafe';
+      const pQty = item.quantity || 1;
+      const pPrice = item.price || transactionData.total_price;
+      const vSize = item.variant_size || '';
+
+      itemRow.innerHTML = `
+        <div>
+          <div>${pName} ${vSize ? `(${vSize})` : ''}</div>
+          <div class="text-zinc-600 font-normal text-[10px]">${pQty} x ${formatRupiah(pPrice)}</div>
+        </div>
+        <span>${formatRupiah(pPrice * pQty)}</span>
+      `;
+      itemsContainer.appendChild(itemRow);
+    });
+  }
+
+  modal.classList.remove('hidden');
+  setTimeout(() => modal.classList.remove('opacity-0'), 10);
+}
+
+function printReceipt() {
+  window.print();
+}
+
+function closeReceiptModal() {
+  const modal = document.getElementById('receipt-modal');
+  if (!modal) return;
+  modal.classList.add('opacity-0');
+  setTimeout(() => modal.classList.add('hidden'), 300);
+}
+
+// Buyer Status Cart Drawer Functions
+function openCart() {
+  renderCartDrawer();
+  if (cartDrawer) cartDrawer.classList.remove('pointer-events-none');
+  if (cartOverlay) cartOverlay.classList.remove('opacity-0');
+  if (cartSheet) cartSheet.classList.remove('translate-y-full');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCart() {
+  if (cartSheet) cartSheet.classList.add('translate-y-full');
+  if (cartOverlay) cartOverlay.classList.add('opacity-0');
+  setTimeout(() => {
+    if (cartDrawer) cartDrawer.classList.add('pointer-events-none');
+    document.body.style.overflow = '';
+  }, 300);
+}
+
+function renderCartDrawer() {
+  const container = document.getElementById('cart-items-container');
+  const emptyState = document.getElementById('cart-empty-state');
+  const contentState = document.getElementById('cart-content-state');
+
+  if (!container) return;
+
+  const orders = getTransactionsFromStorage();
+  const myOrders = orders.filter(o => state.myOrderIds.includes(o.id));
+
+  if (myOrders.length === 0) {
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (contentState) contentState.classList.add('hidden');
+    return;
+  }
+
+  if (emptyState) emptyState.classList.add('hidden');
+  if (contentState) contentState.classList.remove('hidden');
+
+  container.innerHTML = '';
+  myOrders.forEach(o => {
+    const card = document.createElement('div');
+    card.className = 'bg-zinc-50 border border-zinc-200 rounded-xl p-3 space-y-2';
+    card.innerHTML = `
+      <div class="flex items-center justify-between text-xs border-b border-zinc-200 pb-1.5">
+        <span class="font-bold text-zinc-800">#${o.id}</span>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.status === 'selesai' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+      }">${o.status.toUpperCase()}</span>
+      </div>
+      <div class="text-xs text-zinc-600">
+        <p class="font-medium text-zinc-900">${o.ratio_notes || 'Menu Cafe'}</p>
+        <div class="flex justify-between items-center mt-1">
+          <span class="text-[10px] text-zinc-400">${new Date(o.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span class="font-bold text-amber-600">${formatRupiah(o.total_price)}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Global functions attached to window
+window.getTransactionsFromStorage = getTransactionsFromStorage;
+window.saveTransactionToStorage = saveTransactionToStorage;
+window.getKollaboraCategories = getKollaboraCategories;
+window.renderCategoryChips = renderCategoryChips;
+window.showReceipt = showReceipt;
+window.printReceipt = printReceipt;
+window.closeReceiptModal = closeReceiptModal;
+window.openCart = openCart;
+window.closeCart = closeCart;
+window.removePosCartItem = removePosCartItem;
+window.updatePosCartQuantity = updatePosCartQuantity;
+window.updatePosCartItemVariant = updatePosCartItemVariant;
+
+// Auto-update kategori dan produk saat berubah di Admin (Storage event antar-tab)
+window.addEventListener('storage', (e) => {
+  if (e.key === 'kollabora_kategori') {
+    renderCategoryChips();
+    renderProducts();
+  } else if (e.key === 'cafe_store_products') {
+    reloadProductsFromStorage();
+    renderCategoryChips();
+    renderProducts();
+  }
+});
+
+// Auto-refresh saat kembali fokus ke tab kasir
+window.addEventListener('focus', () => {
+  renderCategoryChips();
+  renderProducts();
+});
+
+// Event Listeners Inisialisasi
+document.addEventListener('DOMContentLoaded', () => {
+  // Inisialisasi kategori awal
+  getKollaboraCategories();
+  renderCategoryChips();
+  renderProducts();
+  renderPosCart();
+  initPaymentMethodSelector();
+  updateCartBadge();
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      renderProducts();
+    });
+  }
+
+  if (readyFilterToggle) {
+    readyFilterToggle.addEventListener('change', (e) => {
+      state.onlyReady = e.target.checked;
+      renderProducts();
+    });
+  }
+
+  // POS Order Panel Header buttons
+  const clearPosBtn = document.getElementById('clear-pos-cart-btn');
+  if (clearPosBtn) {
+    clearPosBtn.addEventListener('click', clearPosCart);
+  }
+
+  const closeOrderBtn = document.getElementById('close-order-panel-btn');
+  if (closeOrderBtn) {
+    closeOrderBtn.addEventListener('click', closeOrderPanel);
+  }
+
+  // Checkout Button
+  const checkoutBtn = document.getElementById('pos-checkout-btn');
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener('click', checkoutPosOrder);
+  }
+
+  // Product Detail Drawer Listeners
+  if (detailOverlay) {
+    detailOverlay.addEventListener('click', closeProductDetail);
+  }
+
+  const detailCloseBtn = document.getElementById('detail-close-btn');
+  if (detailCloseBtn) {
+    detailCloseBtn.addEventListener('click', closeProductDetail);
+  }
+
+  const drawerActionBtn = document.getElementById('drawer-action-btn');
+  if (drawerActionBtn) {
+    drawerActionBtn.addEventListener('click', submitOrder);
+  }
+
+  const addMixBtn = document.getElementById('add-mix-btn');
+  if (addMixBtn) {
+    addMixBtn.addEventListener('click', addMixIngredient);
+  }
+
+  const mixToggle = document.getElementById('mix-toggle');
+  if (mixToggle) {
+    mixToggle.addEventListener('change', (e) => {
+      const mixSec = document.getElementById('mix-section-content');
+      if (mixSec) {
+        if (e.target.checked) {
+          mixSec.classList.remove('hidden');
+          renderMixIngredients();
+        } else {
+          mixSec.classList.add('hidden');
+        }
+      }
+    });
+  }
+
+  // Cart Status Drawer Listeners
+  if (cartFloatingBtn) {
+    cartFloatingBtn.addEventListener('click', openCart);
+  }
+
+  if (cartOverlay) {
+    cartOverlay.addEventListener('click', closeCart);
+  }
+
+  const cartCloseBtn = document.getElementById('cart-close-btn');
+  if (cartCloseBtn) {
+    cartCloseBtn.addEventListener('click', closeCart);
+  }
+
+  const cartCloseBottomBtn = document.getElementById('cart-close-bottom-btn');
+  if (cartCloseBottomBtn) {
+    cartCloseBottomBtn.addEventListener('click', closeCart);
+  }
+});
