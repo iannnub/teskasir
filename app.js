@@ -104,7 +104,6 @@ function getKollaboraCategories() {
   } catch (e) {
     console.error('Gagal membaca kollabora_kategori:', e);
   }
-  // Set default jika belum ada di localStorage
   localStorage.setItem('kollabora_kategori', JSON.stringify(DEFAULT_CATEGORIES));
   return [...DEFAULT_CATEGORIES];
 }
@@ -141,7 +140,6 @@ function saveTransactionToStorage(newTx) {
   localStorage.setItem('cafe_orders', JSON.stringify(txs));
 }
 
-// Inisialisasi Database Order O2O
 function initDatabase() {
   getTransactionsFromStorage();
 }
@@ -554,7 +552,6 @@ function renderCategoryChips() {
   const storedCategories = getKollaboraCategories();
   const categories = ['Semua', ...storedCategories];
 
-  // Jika selectedCategory saat ini tidak ada lagi di daftar, reset ke 'Semua'
   if (!categories.includes(state.selectedCategory)) {
     state.selectedCategory = 'Semua';
   }
@@ -581,7 +578,7 @@ function renderCategoryChips() {
   });
 }
 
-// Render Product Catalog
+// Render Product Catalog (Badge & Tombol + di atas gambar dihapus)
 function renderProducts() {
   reloadProductsFromStorage();
   if (!productGrid) return;
@@ -614,26 +611,13 @@ function renderProducts() {
     const prices = p.variants.map(v => v.price);
     const minPrice = Math.min(...prices);
 
-    const totalStock = p.variants.reduce((sum, v) => sum + v.stock, 0);
-    const badgeText = totalStock === 0 ? 'Habis' : p.badge;
-    const badgeClass = totalStock === 0 ? 'bg-zinc-600' : p.badgeClass;
-
     const card = document.createElement('div');
     card.className = 'glass-card rounded-2xl overflow-hidden flex flex-col group cursor-pointer border border-zinc-200/60 hover:border-amber-500/50 transition-all shadow-sm bg-white text-zinc-900';
+    
+    // Tampilan card bersih tanpa badge stok dan tanpa tombol + di atas foto
     card.innerHTML = `
       <div class="relative aspect-[4/3] sm:aspect-[4/5] bg-zinc-100 overflow-hidden">
         <img src="${p.image || 'assets/americano.png'}" alt="${p.name}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-        
-        <div class="absolute top-2 left-2 flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/60 backdrop-blur-md border border-white/10">
-          <span class="w-1.5 h-1.5 rounded-full ${badgeClass}"></span>
-          <span class="text-white">${badgeText}</span>
-        </div>
-
-        <button class="open-detail-btn absolute top-2 right-2 p-1.5 rounded-full bg-white/80 backdrop-blur-md text-zinc-700 hover:text-amber-600 hover:bg-white shadow transition-all cursor-pointer" title="Custom Mix / Detail">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-        </button>
       </div>
       <div class="p-3 flex-1 flex flex-col justify-between">
         <div>
@@ -659,14 +643,6 @@ function renderProducts() {
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         addToPosCart(p);
-      });
-    }
-
-    const detailBtn = card.querySelector('.open-detail-btn');
-    if (detailBtn) {
-      detailBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openProductDetail(p);
       });
     }
 
@@ -840,301 +816,58 @@ function renderMixIngredients() {
     row.innerHTML = `
       <span class="text-xs text-zinc-800 flex-1">${prod.name}</span>
       <div class="w-20">
-        <input type="number" min="1" max="100" value="${ingredient.ratio}" oninput="updateMixIngredientRatio(${index}, this.value)" class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-800 text-center focus:outline-none focus:border-amber-500 font-semibold" placeholder="%">
+        <input type="number" min="1" max="100" value="${ingredient.ratio}" oninput="updateMixIngredientRatio(${index}, this.value)" class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-800 text-center font-bold focus:outline-none focus:border-amber-500">
       </div>
       <span class="text-zinc-500 text-xs font-semibold px-1">%</span>
-      <button type="button" onclick="removeMixIngredient(${index})" class="p-1.5 text-red-500 hover:text-red-700 transition-colors shrink-0 cursor-pointer">
+      <button onclick="removeMixIngredient(${index})" class="text-zinc-400 hover:text-red-500 p-1 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     `;
     container.appendChild(row);
   });
+}
 
-  const totalRatio = baseRatio + additionalSum;
-  const label = document.getElementById('mix-total-ratio-label');
-  if (label) {
-    label.textContent = `${totalRatio}%`;
-    if (totalRatio === 100) {
-      label.className = 'text-green-600 font-bold';
+function updateMixIngredientRatio(index, val) {
+  let num = parseInt(val) || 0;
+  if (num < 1) num = 1;
+  if (num > 100) num = 100;
+  state.activeMixIngredients[index].ratio = num;
+
+  const currentSum = state.activeMixIngredients.reduce((s, item) => s + item.ratio, 0);
+  const ratioLabel = document.getElementById('mix-total-ratio-label');
+  if (ratioLabel) {
+    ratioLabel.textContent = currentSum + '%';
+    if (currentSum > 100) {
+      ratioLabel.className = 'text-red-600 font-bold';
     } else {
-      label.className = 'text-red-500 font-bold';
+      ratioLabel.className = 'text-amber-600';
     }
   }
 }
 
-window.updateMixIngredientRatio = function (index, val) {
-  const numericVal = parseInt(val) || 0;
-  state.activeMixIngredients[index].ratio = numericVal;
-  renderMixIngredients();
-};
-
-window.removeMixIngredient = function (index) {
+function removeMixIngredient(index) {
   state.activeMixIngredients.splice(index, 1);
   renderMixIngredients();
   populateMixDropdown();
-};
-
-function addMixIngredient() {
-  const select = document.getElementById('add-mix-select');
-  if (!select) return;
-  const productId = select.value;
-  if (!productId) return;
-
-  const additionalSum = state.activeMixIngredients.reduce((sum, item) => sum + item.ratio, 0);
-  const remaining = 100 - additionalSum;
-  const defaultRatio = remaining > 10 ? 10 : (remaining > 0 ? remaining : 0);
-
-  state.activeMixIngredients.push({
-    productId: productId,
-    ratio: defaultRatio
-  });
-
-  renderMixIngredients();
-  populateMixDropdown();
+  updateMixTotalRatio();
 }
 
-function submitOrder() {
-  reloadProductsFromStorage();
-
-  const custInput = document.getElementById('customer-name-input');
-  const customerName = custInput ? custInput.value.trim() : 'Pelanggan Cafe';
-
-  const mixToggle = document.getElementById('mix-toggle');
-  const isMixed = mixToggle && mixToggle.checked;
-
-  let formula = '';
-  const ingredientDetails = [];
-  const stockChecklist = [];
-
-  if (isMixed) {
-    const additionalSum = state.activeMixIngredients.reduce((sum, item) => sum + item.ratio, 0);
-    const baseRatio = 100 - additionalSum;
-
-    if (baseRatio + additionalSum !== 100) {
-      showToast(`Total persentase campuran harus 100% (saat ini ${baseRatio + additionalSum}%)`);
-      return;
-    }
-
-    const primaryProd = PRODUCTS.find(p => p.id === state.activeProduct.id);
-    const primaryVar = primaryProd ? primaryProd.variants.find(v => v.size === state.activeVariant.size) : null;
-    if (!primaryVar || primaryVar.stock < 1) {
-      showToast(`Stok untuk menu ${state.activeProduct.name} (${state.activeVariant.size}) tidak mencukupi!`);
-      return;
-    }
-    stockChecklist.push({ variant: primaryVar, product: primaryProd });
-
-    formula = `${state.activeProduct.name} (${baseRatio}%)`;
-    ingredientDetails.push({
-      id: 'DET-' + Math.floor(100000 + Math.random() * 900000),
-      product_id: state.activeProduct.id,
-      product_name: state.activeProduct.name,
-      variant_size: state.activeVariant.size,
-      price: state.activeVariant.price,
-      quantity: 1,
-      ratio: String(baseRatio)
-    });
-
-    for (let i = 0; i < state.activeMixIngredients.length; i++) {
-      const ing = state.activeMixIngredients[i];
-      const mixProd = PRODUCTS.find(p => p.id === ing.productId);
-      const mixVar = mixProd ? mixProd.variants.find(v => v.size === state.activeVariant.size) || mixProd.variants[0] : null;
-
-      if (!mixVar || mixVar.stock < 1) {
-        showToast(`Stok untuk campuran ${mixProd ? mixProd.name : ''} tidak mencukupi!`);
-        return;
-      }
-
-      stockChecklist.push({ variant: mixVar, product: mixProd });
-      formula += `, ${mixProd.name} (${ing.ratio}%)`;
-      ingredientDetails.push({
-        id: 'DET-' + Math.floor(100000 + Math.random() * 900000),
-        product_id: ing.productId,
-        product_name: mixProd.name,
-        variant_size: mixVar.size,
-        price: mixVar.price,
-        quantity: 1,
-        ratio: String(ing.ratio)
-      });
-    }
-  } else {
-    formula = `${state.activeProduct.name} (100%)`;
+function updateMixTotalRatio() {
+  const currentSum = state.activeMixIngredients.reduce((s, item) => s + item.ratio, 0);
+  const ratioLabel = document.getElementById('mix-total-ratio-label');
+  if (ratioLabel) {
+    ratioLabel.textContent = currentSum + '%';
   }
-
-  const posCustInput = document.getElementById('pos-customer-name');
-  if (posCustInput && !posCustInput.value.trim() && customerName) {
-    posCustInput.value = customerName;
-  }
-
-  addToPosCart(
-    state.activeProduct,
-    state.activeVariant,
-    isMixed ? `Custom Mix: ${formula}` : '',
-    isMixed ? ingredientDetails : null
-  );
-
-  closeProductDetail();
 }
 
-// Struk / Receipt Modal Functions
-function showReceipt(transactionData, itemsData) {
-  const modal = document.getElementById('receipt-modal');
-  if (!modal) return;
-
-  const invEl = document.getElementById('receipt-invoice');
-  const dateEl = document.getElementById('receipt-date');
-  const custEl = document.getElementById('receipt-customer');
-  const methodEl = document.getElementById('receipt-method');
-  const totalEl = document.getElementById('receipt-total');
-  const itemsContainer = document.getElementById('receipt-items');
-
-  if (invEl) invEl.textContent = `#${transactionData.id}`;
-  const dateObj = new Date(transactionData.date || new Date());
-  if (dateEl) {
-    dateEl.textContent = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-  }
-
-  if (custEl) custEl.textContent = transactionData.customer_name || 'Pelanggan';
-  if (methodEl) methodEl.textContent = (transactionData.metode_pembayaran || 'Cash').toUpperCase();
-  if (totalEl) totalEl.textContent = formatRupiah(transactionData.total_price);
-
-  if (itemsContainer) {
-    itemsContainer.innerHTML = '';
-    itemsData.forEach(item => {
-      const itemRow = document.createElement('div');
-      itemRow.className = 'flex justify-between font-bold text-xs mt-1';
-      const pName = item.product_name || 'Menu Cafe';
-      const pQty = item.quantity || 1;
-      const pPrice = item.price || transactionData.total_price;
-      const vSize = item.variant_size || '';
-
-      itemRow.innerHTML = `
-        <div>
-          <div>${pName} ${vSize ? `(${vSize})` : ''}</div>
-          <div class="text-zinc-600 font-normal text-[10px]">${pQty} x ${formatRupiah(pPrice)}</div>
-        </div>
-        <span>${formatRupiah(pPrice * pQty)}</span>
-      `;
-      itemsContainer.appendChild(itemRow);
-    });
-  }
-
-  modal.classList.remove('hidden');
-  setTimeout(() => modal.classList.remove('opacity-0'), 10);
-}
-
-function printReceipt() {
-  window.print();
-}
-
-function closeReceiptModal() {
-  const modal = document.getElementById('receipt-modal');
-  if (!modal) return;
-  modal.classList.add('opacity-0');
-  setTimeout(() => modal.classList.add('hidden'), 300);
-}
-
-// Buyer Status Cart Drawer Functions
-function openCart() {
-  renderCartDrawer();
-  if (cartDrawer) cartDrawer.classList.remove('pointer-events-none');
-  if (cartOverlay) cartOverlay.classList.remove('opacity-0');
-  if (cartSheet) cartSheet.classList.remove('translate-y-full');
-  document.body.style.overflow = 'hidden';
-}
-
-function closeCart() {
-  if (cartSheet) cartSheet.classList.add('translate-y-full');
-  if (cartOverlay) cartOverlay.classList.add('opacity-0');
-  setTimeout(() => {
-    if (cartDrawer) cartDrawer.classList.add('pointer-events-none');
-    document.body.style.overflow = '';
-  }, 300);
-}
-
-function renderCartDrawer() {
-  const container = document.getElementById('cart-items-container');
-  const emptyState = document.getElementById('cart-empty-state');
-  const contentState = document.getElementById('cart-content-state');
-
-  if (!container) return;
-
-  const orders = getTransactionsFromStorage();
-  const myOrders = orders.filter(o => state.myOrderIds.includes(o.id));
-
-  if (myOrders.length === 0) {
-    if (emptyState) emptyState.classList.remove('hidden');
-    if (contentState) contentState.classList.add('hidden');
-    return;
-  }
-
-  if (emptyState) emptyState.classList.add('hidden');
-  if (contentState) contentState.classList.remove('hidden');
-
-  container.innerHTML = '';
-  myOrders.forEach(o => {
-    const card = document.createElement('div');
-    card.className = 'bg-zinc-50 border border-zinc-200 rounded-xl p-3 space-y-2';
-    card.innerHTML = `
-      <div class="flex items-center justify-between text-xs border-b border-zinc-200 pb-1.5">
-        <span class="font-bold text-zinc-800">#${o.id}</span>
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.status === 'selesai' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-      }">${o.status.toUpperCase()}</span>
-      </div>
-      <div class="text-xs text-zinc-600">
-        <p class="font-medium text-zinc-900">${o.ratio_notes || 'Menu Cafe'}</p>
-        <div class="flex justify-between items-center mt-1">
-          <span class="text-[10px] text-zinc-400">${new Date(o.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
-          <span class="font-bold text-amber-600">${formatRupiah(o.total_price)}</span>
-        </div>
-      </div>
-    `;
-    container.appendChild(card);
-  });
-}
-
-// Global functions attached to window
-window.getTransactionsFromStorage = getTransactionsFromStorage;
-window.saveTransactionToStorage = saveTransactionToStorage;
-window.getKollaboraCategories = getKollaboraCategories;
-window.renderCategoryChips = renderCategoryChips;
-window.showReceipt = showReceipt;
-window.printReceipt = printReceipt;
-window.closeReceiptModal = closeReceiptModal;
-window.openCart = openCart;
-window.closeCart = closeCart;
-window.removePosCartItem = removePosCartItem;
-window.updatePosCartQuantity = updatePosCartQuantity;
-window.updatePosCartItemVariant = updatePosCartItemVariant;
-
-// Auto-update kategori dan produk saat berubah di Admin (Storage event antar-tab)
-window.addEventListener('storage', (e) => {
-  if (e.key === 'kollabora_kategori') {
-    renderCategoryChips();
-    renderProducts();
-  } else if (e.key === 'cafe_store_products') {
-    reloadProductsFromStorage();
-    renderCategoryChips();
-    renderProducts();
-  }
-});
-
-// Auto-refresh saat kembali fokus ke tab kasir
-window.addEventListener('focus', () => {
-  renderCategoryChips();
-  renderProducts();
-});
-
-// Event Listeners Inisialisasi
+// Inisialisasi Event Listeners Utama saat DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
-  // Inisialisasi kategori awal
-  getKollaboraCategories();
   renderCategoryChips();
   renderProducts();
-  renderPosCart();
-  initPaymentMethodSelector();
   updateCartBadge();
+  initPaymentMethodSelector();
 
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
@@ -1150,41 +883,100 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // POS Order Panel Header buttons
-  const clearPosBtn = document.getElementById('clear-pos-cart-btn');
-  if (clearPosBtn) {
-    clearPosBtn.addEventListener('click', clearPosCart);
-  }
-
-  const closeOrderBtn = document.getElementById('close-order-panel-btn');
-  if (closeOrderBtn) {
-    closeOrderBtn.addEventListener('click', closeOrderPanel);
-  }
-
-  // Checkout Button
   const checkoutBtn = document.getElementById('pos-checkout-btn');
   if (checkoutBtn) {
     checkoutBtn.addEventListener('click', checkoutPosOrder);
   }
 
-  // Product Detail Drawer Listeners
-  if (detailOverlay) {
-    detailOverlay.addEventListener('click', closeProductDetail);
+  const clearCartBtn = document.getElementById('clear-pos-cart-btn');
+  if (clearCartBtn) {
+    clearCartBtn.addEventListener('click', clearPosCart);
   }
 
-  const detailCloseBtn = document.getElementById('detail-close-btn');
-  if (detailCloseBtn) {
-    detailCloseBtn.addEventListener('click', closeProductDetail);
+  const closeOrderPanelBtn = document.getElementById('close-order-panel-btn');
+  if (closeOrderPanelBtn) {
+    closeOrderPanelBtn.addEventListener('click', closeOrderPanel);
   }
+
+  if (cartFloatingBtn) {
+    cartFloatingBtn.addEventListener('click', () => {
+      if (cartDrawer) cartDrawer.classList.remove('pointer-events-none');
+      if (cartOverlay) cartOverlay.classList.remove('opacity-0');
+      if (cartSheet) cartSheet.classList.remove('translate-y-full');
+      document.body.style.overflow = 'hidden';
+      renderBuyerOrdersStatus();
+    });
+  }
+
+  const closeCartDrawer = () => {
+    if (cartSheet) cartSheet.classList.add('translate-y-full');
+    if (cartOverlay) cartOverlay.classList.add('opacity-0');
+    setTimeout(() => {
+      if (cartDrawer) cartDrawer.classList.add('pointer-events-none');
+      document.body.style.overflow = '';
+    }, 300);
+  };
+
+  const cartCloseBtn = document.getElementById('cart-close-btn');
+  const cartOverlayEl = document.getElementById('cart-overlay');
+  if (cartCloseBtn) cartCloseBtn.addEventListener('click', closeCartDrawer);
+  if (cartOverlayEl) cartOverlayEl.addEventListener('click', closeCartDrawer);
+
+  window.closeCart = closeCartDrawer;
+
+  const detailCloseBtn = document.getElementById('detail-close-btn');
+  const detailOverlayEl = document.getElementById('detail-overlay');
+  if (detailCloseBtn) detailCloseBtn.addEventListener('click', closeProductDetail);
+  if (detailOverlayEl) detailOverlayEl.addEventListener('click', closeProductDetail);
 
   const drawerActionBtn = document.getElementById('drawer-action-btn');
   if (drawerActionBtn) {
-    drawerActionBtn.addEventListener('click', submitOrder);
-  }
+    drawerActionBtn.addEventListener('click', () => {
+      if (!state.activeProduct || !state.activeVariant) return;
 
-  const addMixBtn = document.getElementById('add-mix-btn');
-  if (addMixBtn) {
-    addMixBtn.addEventListener('click', addMixIngredient);
+      const custNameInput = document.getElementById('customer-name-input');
+      const custName = custNameInput ? custNameInput.value.trim() : '';
+
+      if (!custName) {
+        showToast('Masukkan Nama Pelanggan terlebih dahulu!');
+        if (custNameInput) custNameInput.focus();
+        return;
+      }
+
+      const notes = document.getElementById('mix-notes')?.value.trim() || '';
+      let ratioNotes = '';
+
+      const isMixActive = document.getElementById('mix-toggle')?.checked;
+      let mixDetails = null;
+
+      if (isMixActive && state.activeMixIngredients.length > 0) {
+        const parts = state.activeMixIngredients.map(i => {
+          const pObj = PRODUCTS.find(prod => prod.id === i.productId);
+          return `${pObj ? pObj.name : 'Mix'} (${i.ratio}%)`;
+        });
+        const addSum = state.activeMixIngredients.reduce((s, i) => s + i.ratio, 0);
+        let baseR = 100 - addSum;
+        if (baseR < 0) baseR = 0;
+        ratioNotes = `Mix: ${state.activeProduct.name} (${baseR}%) + ` + parts.join(', ');
+        mixDetails = {
+          baseRatio: baseR,
+          ingredients: state.activeMixIngredients
+        };
+      }
+
+      if (notes) {
+        ratioNotes = ratioNotes ? ratioNotes + ` | Catatan: ${notes}` : `Catatan: ${notes}`;
+      }
+
+      addToPosCart(state.activeProduct, state.activeVariant, ratioNotes, mixDetails);
+
+      const posCustInput = document.getElementById('pos-customer-name');
+      if (posCustInput && !posCustInput.value) {
+        posCustInput.value = custName;
+      }
+
+      closeProductDetail();
+    });
   }
 
   const mixToggle = document.getElementById('mix-toggle');
@@ -1194,7 +986,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mixSec) {
         if (e.target.checked) {
           mixSec.classList.remove('hidden');
-          renderMixIngredients();
         } else {
           mixSec.classList.add('hidden');
         }
@@ -1202,22 +993,164 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Cart Status Drawer Listeners
-  if (cartFloatingBtn) {
-    cartFloatingBtn.addEventListener('click', openCart);
-  }
+  const addMixBtn = document.getElementById('add-mix-btn');
+  if (addMixBtn) {
+    addMixBtn.addEventListener('click', () => {
+      const select = document.getElementById('add-mix-select');
+      if (!select) return;
+      const prodId = select.value;
+      if (!prodId) return;
 
-  if (cartOverlay) {
-    cartOverlay.addEventListener('click', closeCart);
-  }
-
-  const cartCloseBtn = document.getElementById('cart-close-btn');
-  if (cartCloseBtn) {
-    cartCloseBtn.addEventListener('click', closeCart);
-  }
-
-  const cartCloseBottomBtn = document.getElementById('cart-close-bottom-btn');
-  if (cartCloseBottomBtn) {
-    cartCloseBottomBtn.addEventListener('click', closeCart);
+      state.activeMixIngredients.push({
+        productId: prodId,
+        ratio: 20
+      });
+      renderMixIngredients();
+      populateMixDropdown();
+      updateMixTotalRatio();
+    });
   }
 });
+
+// Render Status Pesanan Pembeli di Bottom Sheet Cart Drawer
+function renderBuyerOrdersStatus() {
+  const emptyState = document.getElementById('cart-empty-state');
+  const contentState = document.getElementById('cart-content-state');
+  const container = document.getElementById('cart-items-container');
+
+  if (!container) return;
+
+  const allTxs = getTransactionsFromStorage();
+  const myTxs = allTxs.filter(o => state.myOrderIds.includes(o.id)).reverse();
+
+  if (myTxs.length === 0) {
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (contentState) contentState.classList.add('hidden');
+    return;
+  }
+
+  if (emptyState) emptyState.classList.add('hidden');
+  if (contentState) contentState.classList.remove('hidden');
+  container.innerHTML = '';
+
+  myTxs.forEach(tx => {
+    const dateStr = new Date(tx.date).toLocaleDateString('id-ID', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    let statusBadgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+    let statusText = 'Sedang Diproses';
+    if (tx.status === 'selesai') {
+      statusBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      statusText = 'Selesai / Siap';
+    }
+
+    const card = document.createElement('div');
+    card.className = 'bg-zinc-50 border border-zinc-200 rounded-xl p-3.5 space-y-2 shadow-sm';
+    card.innerHTML = `
+      <div class="flex items-center justify-between border-b border-zinc-200 pb-2">
+        <div>
+          <span class="text-xs font-bold text-zinc-900">${tx.id}</span>
+          <p class="text-[10px] text-zinc-500">${dateStr}</p>
+        </div>
+        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadgeClass}">${statusText}</span>
+      </div>
+      
+      <div class="text-xs space-y-1">
+        <div class="flex justify-between text-zinc-600">
+          <span>Pemesan: <strong class="text-zinc-800">${tx.customer_name}</strong></span>
+          <span>Metode: <strong class="text-zinc-800">${tx.metode_pembayaran || 'Cash'}</strong></span>
+        </div>
+        <p class="text-[11px] text-zinc-700 font-medium pt-1">${tx.ratio_notes || '-'}</p>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-zinc-200/60">
+        <span class="text-xs font-extrabold text-amber-600">${formatRupiah(tx.total_price)}</span>
+        <button onclick="showReceiptModalById('${tx.id}')" class="text-[11px] font-semibold text-zinc-700 hover:text-amber-600 bg-white border border-zinc-200 px-3 py-1 rounded-lg shadow-xs transition-colors cursor-pointer">
+          Lihat Struk
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Modal Struk Pembelian
+function showReceipt(transaction, items) {
+  const modal = document.getElementById('receipt-modal');
+  if (!modal) return;
+
+  document.getElementById('receipt-invoice').textContent = transaction.id;
+  document.getElementById('receipt-date').textContent = new Date(transaction.date).toLocaleString('id-ID');
+  document.getElementById('receipt-customer').textContent = transaction.customer_name;
+  document.getElementById('receipt-method').textContent = transaction.metode_pembayaran || 'CASH';
+  document.getElementById('receipt-total').textContent = formatRupiah(transaction.total_price);
+
+  const itemsContainer = document.getElementById('receipt-items');
+  if (itemsContainer) {
+    itemsContainer.innerHTML = '';
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'flex justify-between text-xs mb-1';
+      row.innerHTML = `
+        <span class="truncate pr-2">${item.product_name} (${item.variant_size}) x${item.quantity}</span>
+        <span class="shrink-0 font-bold">${formatRupiah(item.price * item.quantity)}</span>
+      `;
+      itemsContainer.appendChild(row);
+    });
+  }
+
+  modal.classList.remove('hidden');
+  setTimeout(() => {
+    modal.classList.remove('opacity-0');
+  }, 10);
+}
+
+function showReceiptModalById(orderId) {
+  const txs = getTransactionsFromStorage();
+  const tx = txs.find(t => t.id === orderId);
+  if (!tx) {
+    showToast('Data transaksi tidak ditemukan');
+    return;
+  }
+  showReceipt(tx, tx.items || []);
+}
+
+function closeReceiptModal() {
+  const modal = document.getElementById('receipt-modal');
+  if (!modal) return;
+  modal.classList.add('opacity-0');
+  setTimeout(() => {
+    modal.classList.add('hidden');
+  }, 300);
+}
+
+function printReceipt() {
+  const printArea = document.getElementById('receipt-print-area');
+  if (!printArea) return;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html>
+      <head>
+        <title>Cetak Struk - Kollabora Cafe</title>
+        <style>
+          body { font-family: monospace; font-size: 12px; padding: 15px; color: #000; width: 280px; }
+          .text-center { text-align: center; }
+          .flex { display: flex; justify-content: space-between; }
+          .border-b { border-bottom: 1px dashed #333; padding-bottom: 8px; margin-bottom: 8px; }
+          .font-bold { font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        ${printArea.innerHTML}
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+    win.close();
+  }, 300);
+}

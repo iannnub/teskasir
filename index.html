@@ -30,7 +30,7 @@
 
 <body class="bg-zinc-50 text-zinc-900 flex flex-col min-h-screen pb-20 select-none">
 
-  <!-- Main Sticky Header -->
+ <!-- Main Sticky Header -->
   <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-zinc-200 py-3.5 px-4 flex items-center justify-between shadow-sm">
     <div class="flex flex-col">
       <span class="text-xl font-extrabold tracking-widest text-zinc-900 font-display">KOLLABORA - The Best Thematic Cafe & Restaurant in Indonesia</span>
@@ -39,23 +39,24 @@
         Jl. Raya Kupang Indah No.51, Sonokwijenan, Kec. Sukomanunggal, Surabaya, Jawa Timur 60225
       </span>
     </div>
-    <div class="flex items-center space-x-2">
+  </div>
+    <div class="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
       <!-- Phone Friendly Help CTA -->
       <a href="tel:6281234567890"
-        class="p-2 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors"
+        class="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors"
         title="Hubungi Kasir">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24"
-          stroke="currentColor" width="18">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </a>
       <!-- Admin Panel Link -->
       <a href="admin.html"
-        class="p-2 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-amber-600 transition-colors"
+        class="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-amber-600 transition-colors"
         title="Admin Panel">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24"
-          stroke="currentColor" width="18">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -70,44 +71,42 @@
     <!-- LEFT SIDE: Catalog Menu Area -->
     <div id="catalog-area" class="flex-1 flex flex-col min-w-0 transition-all duration-300">
       
-      <!-- Sticky Filters & Search Container -->
-      <div class="sticky top-[53px] z-20 bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200 px-4 py-3 space-y-3">
+      <!-- Filters & Search Container -->
+      <div class="relative z-20 bg-zinc-50/95 backdrop-blur-md border-b border-zinc-200 px-3 py-1.5 sm:px-4 sm:py-3 space-y-1.5 sm:space-y-3">
         <!-- Search Bar -->
         <div class="relative">
-          <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24"
+          <span class="absolute inset-y-0 left-0 pl-2.5 sm:pl-3 flex items-center pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-zinc-400" fill="none" viewBox="0 0 24 24"
               stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </span>
           <input type="text" id="search-input" placeholder="Cari menu..."
-            class="w-full bg-white border border-zinc-200 rounded-xl pl-9 pr-4 py-2 text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 shadow-sm transition-colors">
+            class="w-full bg-white border border-zinc-200 rounded-xl pl-8 sm:pl-9 pr-3 sm:pr-4 py-1 sm:py-2 text-xs sm:text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 shadow-xs transition-colors h-[32px] sm:h-[38px]">
         </div>
 
         <!-- Category Chips Selector -->
-        <div id="category-chips" class="flex overflow-x-auto space-x-2 pb-1 no-scrollbar select-none">
+        <div id="category-chips" class="flex overflow-x-auto space-x-1.5 sm:space-x-2 pb-0.5 no-scrollbar select-none">
           <!-- Rendered dynamically by app.js -->
         </div>
 
-        <!-- Ready Stock Toggle -->
-        <div class="flex items-center justify-between bg-white border border-zinc-200 p-2 rounded-xl shadow-sm">
-          <div class="flex items-center space-x-2">
-            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span class="text-xs text-zinc-700 font-medium">Tampilkan hanya Ready Stock di toko</span>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
+        <!-- Ready Stock Toggle Row -->
+        <div class="flex items-center justify-between bg-white border border-zinc-200 px-2.5 py-1 sm:px-3 sm:py-2 rounded-xl shadow-xs">
+          <label for="ready-filter-toggle" class="flex items-center space-x-1.5 sm:space-x-2 cursor-pointer select-none flex-1">
+            <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500 animate-pulse shrink-0"></span>
+            <span class="text-[11px] sm:text-xs text-zinc-700 font-medium">Tampilkan hanya Ready Stock di toko</span>
+          </label>
+          <label for="ready-filter-toggle" class="relative inline-flex items-center cursor-pointer select-none shrink-0 ml-2">
             <input type="checkbox" id="ready-filter-toggle" class="sr-only peer">
-            <div
-              class="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500">
-            </div>
+            <div class="toggle-switch-track"></div>
           </label>
         </div>
       </div>
 
       <!-- Product Grid Section -->
-      <main class="flex-1 px-4 py-4">
-        <div id="product-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3.5 transition-all">
+      <main class="flex-1 px-2.5 py-2.5 sm:px-4 sm:py-4">
+        <div id="product-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3.5 transition-all">
           <!-- Rendered dynamically by app.js -->
         </div>
       </main>
