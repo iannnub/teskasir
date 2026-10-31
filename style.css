@@ -1,12 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --color-bg: #09090b; /* Zinc 950 */
-  --color-surface: #18181b; /* Zinc 900 */
+  --color-bg: #09090b;
+  --color-surface: #18181b;
   --color-surface-glass: rgba(24, 24, 27, 0.75);
   --color-border-glass: rgba(255, 255, 255, 0.08);
-  --color-primary: #d4af37; /* Premium Gold */
-  --color-primary-hover: #f3e5ab; /* Lighter Gold */
+  --color-primary: #d4af37;
+  --color-primary-hover: #f3e5ab;
   --font-display: 'Outfit', sans-serif;
   --font-sans: 'Plus Jakarta Sans', sans-serif;
 }
@@ -14,7 +14,7 @@
 body {
   font-family: var(--font-sans);
   background-color: var(--color-bg);
-  color: #f4f4f5; /* Zinc 100 */
+  color: #f4f4f5;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
 }
@@ -23,7 +23,6 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
 }
 
-/* Glassmorphism Classes */
 .glass-panel {
   background: var(--color-surface-glass);
   backdrop-filter: blur(16px);
