@@ -6,7 +6,14 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const products = await getProducts();
-    return NextResponse.json(products);
+    const envKeys = Object.keys(process.env).filter(k => 
+      k.includes('UPSTASH') || k.includes('REDIS') || k.includes('KV')
+    ).join(',');
+    return NextResponse.json(products, {
+      headers: {
+        'x-env-keys': envKeys || 'none'
+      }
+    });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
   }
