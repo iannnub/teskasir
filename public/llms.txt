@@ -1,0 +1,16 @@
+# Kollabora Cafe
+
+> The Best Thematic Cafe & Restaurant in Surabaya, Indonesia.
+
+## About
+Kollabora Cafe is a premier thematic cafe and restaurant located in Surabaya, East Java, Indonesia. It provides table-side self-ordering and cashier checkout for coffee lovers, food enthusiasts, and cafe visitors.
+
+- Address: Jl. Raya Kupang Indah No.51, Sonokwijenan, Kec. Sukomanunggal, Surabaya, Jawa Timur 60225
+- Phone: +62 812-3456-7890
+- Online Self-Service Terminal: https://kollabora-cafe.vercel.app/
+
+## Menu Categories & Specialties
+- Coffe: Americano (Single/Double espresso, Ice/Hot)
+- Coklat: Mocha Latte, Signature Rich Cocoa
+- Makanan: Carbonara Pasta, Gourmet Rice Bowls
+- Camilan: French Fries, Light Bites
