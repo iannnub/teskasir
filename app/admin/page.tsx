@@ -23,11 +23,39 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState<string>('');
 
   // SWR Data Fetching with Fast Revalidation & Deduping
-  const { data: products = [], error: prodError } = useSWR<Product[]>('/api/products', fetcher, {
-    refreshInterval: 2500,
+  const { data: serverProducts = [], error: prodError } = useSWR<Product[]>('/api/products', fetcher, {
+    refreshInterval: 3000,
     revalidateOnFocus: true,
-    dedupingInterval: 400
+    dedupingInterval: 1000
   });
+
+  // Local Reconciliation: Mencegah produk hilang-muncul (flickering) akibat pergantian worker di Vercel serverless
+  const [localCustomProducts, setLocalCustomProducts] = useState<Product[]>([]);
+  const [deletedProductIds, setDeletedProductIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const savedCustom = localStorage.getItem('kollabora_custom_products');
+      if (savedCustom) setLocalCustomProducts(JSON.parse(savedCustom));
+      const savedDeleted = localStorage.getItem('kollabora_deleted_ids');
+      if (savedDeleted) setDeletedProductIds(JSON.parse(savedDeleted));
+    } catch (_) {}
+  }, []);
+
+  const products = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const p of serverProducts) {
+      if (!deletedProductIds.includes(p.id)) {
+        map.set(p.id, p);
+      }
+    }
+    for (const p of localCustomProducts) {
+      if (!deletedProductIds.includes(p.id)) {
+        map.set(p.id, p);
+      }
+    }
+    return Array.from(map.values());
+  }, [serverProducts, localCustomProducts, deletedProductIds]);
   const { data: categories = [], error: catError } = useSWR<string[]>('/api/categories', fetcher, {
     refreshInterval: 4000,
     revalidateOnFocus: true,
@@ -358,9 +386,26 @@ export default function AdminPage() {
       variants: cleanedVariants
     };
 
-    // 1. Instant Optimistic UI (0ms delay)
+    // 1. Instant Optimistic UI & Local Persistence (0ms delay & no disappearing)
     setIsProductModalOpen(false);
     showNotice(editingProductId ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
+
+    // Persist to local custom products so SWR never drops it on worker switch
+    setLocalCustomProducts(prev => {
+      const next = prev.filter(p => p.id !== finalId);
+      next.push(productPayload);
+      try {
+        localStorage.setItem('kollabora_custom_products', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+    setDeletedProductIds(prev => {
+      const next = prev.filter(id => id !== finalId);
+      try {
+        localStorage.setItem('kollabora_deleted_ids', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
 
     // Ensure filter reveals the new/updated product immediately
     if (selectedCategory !== 'Semua' && selectedCategory.toLowerCase() !== (formCategory || '').toLowerCase()) {
@@ -413,7 +458,22 @@ export default function AdminPage() {
   const handleDeleteProduct = async (productId: string, productName: string) => {
     if (!confirm(`Yakin ingin menghapus menu "${productName}"?`)) return;
 
-    // 1. Instant Optimistic UI (0ms delay)
+    // 1. Instant Optimistic UI & Local Persistence (0ms delay)
+    setDeletedProductIds(prev => {
+      const next = [...prev.filter(id => id !== productId), productId];
+      try {
+        localStorage.setItem('kollabora_deleted_ids', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+    setLocalCustomProducts(prev => {
+      const next = prev.filter(p => p.id !== productId);
+      try {
+        localStorage.setItem('kollabora_custom_products', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+
     const optimisticProducts = products.filter(p => p.id !== productId);
     mutate('/api/products', optimisticProducts, false);
     broadcastLocalChange('products');

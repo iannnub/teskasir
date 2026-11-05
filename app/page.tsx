@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { Phone, Settings, Search, ShoppingBag, X, Trash2, Receipt } from 'lucide-react';
@@ -22,11 +22,44 @@ interface CartItem {
 
 export default function CustomerTerminal() {
   // SWR: Realtime sync auto-poll + instant SSE + broadcast
-  const { data: products = [], mutate: mutateProducts } = useSWR<Product[]>('/api/products', fetcher, {
-    refreshInterval: 2500,
+  const { data: serverProducts = [], mutate: mutateProducts } = useSWR<Product[]>('/api/products', fetcher, {
+    refreshInterval: 3000,
     revalidateOnFocus: true,
-    dedupingInterval: 400
+    dedupingInterval: 1000
   });
+
+  // Local Reconciliation: Mencegah menu hilang-muncul (flickering) akibat pergantian worker di Vercel serverless
+  const [localCustomProducts, setLocalCustomProducts] = useState<Product[]>([]);
+  const [deletedProductIds, setDeletedProductIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadLocal = () => {
+      try {
+        const savedCustom = localStorage.getItem('kollabora_custom_products');
+        if (savedCustom) setLocalCustomProducts(JSON.parse(savedCustom));
+        const savedDeleted = localStorage.getItem('kollabora_deleted_ids');
+        if (savedDeleted) setDeletedProductIds(JSON.parse(savedDeleted));
+      } catch (_) {}
+    };
+    loadLocal();
+    window.addEventListener('storage', loadLocal);
+    return () => window.removeEventListener('storage', loadLocal);
+  }, []);
+
+  const products = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const p of serverProducts) {
+      if (!deletedProductIds.includes(p.id)) {
+        map.set(p.id, p);
+      }
+    }
+    for (const p of localCustomProducts) {
+      if (!deletedProductIds.includes(p.id)) {
+        map.set(p.id, p);
+      }
+    }
+    return Array.from(map.values());
+  }, [serverProducts, localCustomProducts, deletedProductIds]);
 
   const { data: categories = ['Coffe', 'Coklat', 'Makanan', 'Camilan'], mutate: mutateCategories } = useSWR<string[]>('/api/categories', fetcher, {
     refreshInterval: 4000,
