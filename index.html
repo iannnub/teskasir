@@ -3,10 +3,46 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>KOLLABORA - TERMINAL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KOLLABORA - The Best Thematic Cafe & Restaurant in Indonesia</title>
+  <meta name="description" content="Kollabora Coffee & Thematic Restaurant - Nikmati menu kopi espresso, minuman coklat, pasta carbonara, dan camilan gurih di Surabaya.">
+  <meta name="keywords" content="kollabora cafe, cafe surabaya, kopi surabaya, kasir cafe, cafe resto">
+  <meta name="theme-color" content="#d4af37">
 
-  <!-- Tailwind CSS CDN -->
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="KOLLABORA - The Best Thematic Cafe & Restaurant">
+  <meta property="og:description" content="Pesan menu kopi espresso, coklat spesial, makanan, dan camilan nikmat khas Kollabora Cafe.">
+  <meta property="og:image" content="assets/americano.png">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="KOLLABORA - The Best Thematic Cafe & Restaurant">
+  <meta name="twitter:description" content="Pesan menu kopi espresso, coklat spesial, makanan, dan camilan nikmat khas Kollabora Cafe.">
+  <meta name="twitter:image" content="assets/americano.png">
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CafeOrRestaurant",
+    "name": "Kollabora Cafe",
+    "image": "assets/americano.png",
+    "description": "The Best Thematic Cafe & Restaurant in Indonesia",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Jl. Raya Kupang Indah No.51, Sonokwijenan, Kec. Sukomanunggal",
+      "addressLocality": "Surabaya",
+      "addressRegion": "Jawa Timur",
+      "postalCode": "60225",
+      "addressCountry": "ID"
+    },
+    "telephone": "+6281234567890",
+    "servesCuisine": ["Coffee", "Cafe", "Pasta", "Snacks"],
+    "priceRange": "Rp 18.000 - Rp 35.000"
+  }
+  </script>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -24,39 +60,35 @@
     }
   </script>
 
-  <!-- Custom Styles -->
   <link rel="stylesheet" href="style.css">
 </head>
 
-<body class="bg-zinc-50 text-zinc-900 flex flex-col min-h-screen pb-20 select-none">
+<body class="bg-zinc-50 text-zinc-900 flex flex-col min-h-screen pb-20">
 
- <!-- Main Sticky Header -->
-  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-zinc-200 py-3.5 px-4 flex items-center justify-between shadow-sm">
-    <div class="flex flex-col">
-      <span class="text-xl font-extrabold tracking-widest text-zinc-900 font-display">KOLLABORA - The Best Thematic Cafe & Restaurant in Indonesia</span>
-      <span class="text-[9px] text-amber-600 font-semibold tracking-wider flex items-center mt-0.5">
-        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1"></span>
-        Jl. Raya Kupang Indah No.51, Sonokwijenan, Kec. Sukomanunggal, Surabaya, Jawa Timur 60225
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-zinc-200 py-3 px-4 flex items-center justify-between shadow-xs">
+    <div class="flex flex-col min-w-0 pr-2">
+      <h1 class="text-base sm:text-lg md:text-xl font-extrabold tracking-wider text-zinc-900 font-display truncate">
+        KOLLABORA <span class="hidden sm:inline text-xs font-semibold text-zinc-500 font-sans">- The Best Thematic Cafe</span>
+      </h1>
+      <span class="text-[9px] text-amber-700 font-semibold tracking-wider flex items-center mt-0.5 truncate">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1 shrink-0"></span>
+        <span class="truncate">Jl. Raya Kupang Indah No.51, Sonokwijenan, Surabaya</span>
       </span>
     </div>
-  </div>
     <div class="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-      <!-- Phone Friendly Help CTA -->
       <a href="tel:6281234567890"
-        class="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors"
-        title="Hubungi Kasir">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24"
-          stroke="currentColor">
+        class="p-2 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors flex items-center justify-center min-w-[40px] min-h-[40px]"
+        title="Hubungi Kasir" aria-label="Hubungi Kasir via Telepon">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </a>
-      <!-- Admin Panel Link -->
+
       <a href="admin.html"
-        class="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-amber-600 transition-colors"
-        title="Admin Panel">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4.5 sm:w-4.5" fill="none" viewBox="0 0 24 24"
-          stroke="currentColor">
+        class="p-2 rounded-xl bg-zinc-100 border border-zinc-200 text-zinc-600 hover:text-amber-600 transition-colors flex items-center justify-center min-w-[40px] min-h-[40px]"
+        title="Admin Panel" aria-label="Masuk ke Admin Dashboard">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -65,15 +97,12 @@
     </div>
   </header>
 
-  <!-- POS Layout System ( Catalog Left & Order Panel Right ) -->
   <div id="pos-layout" class="flex-1 flex flex-col md:flex-row w-full transition-all duration-300 relative">
-    
-    <!-- LEFT SIDE: Catalog Menu Area -->
+
     <div id="catalog-area" class="flex-1 flex flex-col min-w-0 transition-all duration-300">
-      
-      <!-- Filters & Search Container -->
+
       <div class="relative z-20 bg-zinc-50/95 backdrop-blur-md border-b border-zinc-200 px-3 py-1.5 sm:px-4 sm:py-3 space-y-1.5 sm:space-y-3">
-        <!-- Search Bar -->
+  
         <div class="relative">
           <span class="absolute inset-y-0 left-0 pl-2.5 sm:pl-3 flex items-center pointer-events-none">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-zinc-400" fill="none" viewBox="0 0 24 24"
@@ -86,12 +115,12 @@
             class="w-full bg-white border border-zinc-200 rounded-xl pl-8 sm:pl-9 pr-3 sm:pr-4 py-1 sm:py-2 text-xs sm:text-sm text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 shadow-xs transition-colors h-[32px] sm:h-[38px]">
         </div>
 
-        <!-- Category Chips Selector -->
+
         <div id="category-chips" class="flex overflow-x-auto space-x-1.5 sm:space-x-2 pb-0.5 no-scrollbar select-none">
-          <!-- Rendered dynamically by app.js -->
+
         </div>
 
-        <!-- Ready Stock Toggle Row -->
+
         <div class="flex items-center justify-between bg-white border border-zinc-200 px-2.5 py-1 sm:px-3 sm:py-2 rounded-xl shadow-xs">
           <label for="ready-filter-toggle" class="flex items-center space-x-1.5 sm:space-x-2 cursor-pointer select-none flex-1">
             <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500 animate-pulse shrink-0"></span>
@@ -104,18 +133,15 @@
         </div>
       </div>
 
-      <!-- Product Grid Section -->
       <main class="flex-1 px-2.5 py-2.5 sm:px-4 sm:py-4">
         <div id="product-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3.5 transition-all">
-          <!-- Rendered dynamically by app.js -->
+
         </div>
       </main>
     </div>
 
-    <!-- RIGHT SIDE: Order Panel / Side Panel (MUNCUL DI SEBELAH KANAN SAAT MENU DIKLIK) -->
     <aside id="order-panel" class="bg-white border-l border-zinc-200 shadow-xl flex flex-col z-30">
-      
-      <!-- Side Panel Header -->
+
       <div class="p-4 border-b border-zinc-200 flex items-center justify-between bg-zinc-50/80 shrink-0">
         <div class="flex items-center space-x-2">
           <div class="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600">
@@ -144,29 +170,24 @@
         </div>
       </div>
 
-      <!-- Side Panel Content: Cart Items List -->
       <div id="pos-cart-items" class="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-        <!-- Rendered dynamically by app.js -->
+
       </div>
 
-      <!-- Side Panel Footer: Summary & Checkout Form -->
       <div id="pos-cart-footer" class="p-4 border-t border-zinc-200 bg-zinc-50 shrink-0 space-y-3">
         
-        <!-- Input Nama Pelanggan -->
         <div>
           <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Nama Pelanggan / No. Meja</label>
           <input type="text" id="pos-customer-name" placeholder="Contoh: Budi (Meja 04)" 
             class="w-full bg-white border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 transition-colors shadow-sm">
         </div>
 
-        <!-- Catatan Pesanan -->
         <div>
           <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Catatan Tambahan</label>
           <input type="text" id="pos-order-notes" placeholder="Contoh: Less ice, gula terpisah..." 
             class="w-full bg-white border border-zinc-200 rounded-xl px-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 transition-colors shadow-sm">
         </div>
 
-        <!-- Choice Payment Method -->
         <div>
           <label class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Metode Pembayaran</label>
           <div class="grid grid-cols-3 gap-1.5">
@@ -176,7 +197,6 @@
           </div>
         </div>
 
-        <!-- Price Totals Breakdown -->
         <div class="border-t border-zinc-200 pt-2 space-y-1 text-xs">
           <div class="flex justify-between text-zinc-600">
             <span>Subtotal</span>
@@ -188,7 +208,6 @@
           </div>
         </div>
 
-        <!-- Process Transaction Button -->
         <button id="pos-checkout-btn" class="w-full py-3 px-4 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 002-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -200,7 +219,6 @@
     </aside>
   </div>
 
-  <!-- Floating My Orders Button -->
   <button id="cart-floating-btn"
     class="fixed bottom-6 right-6 z-40 bg-white border border-amber-500/40 rounded-full p-4 text-amber-600 shadow-xl translate-y-24 transition-all duration-300 flex items-center justify-center cursor-pointer active:scale-95"
     aria-label="Buka Status Pesanan Saya">
@@ -209,13 +227,12 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
-      <!-- Active Orders Badge -->
+
       <span id="cart-badge"
         class="absolute -top-2.5 -right-2.5 bg-amber-500 text-white text-[9px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border border-white hidden animate-pulse">0</span>
     </div>
   </button>
 
-  <!-- BOTTOM SHEET: Product Details & Size Selector / Mixing Form -->
   <div id="detail-drawer" class="fixed inset-0 z-50 pointer-events-none flex flex-col justify-end">
     <div id="detail-overlay" class="absolute inset-0 bg-black/40 opacity-0 cursor-pointer pointer-events-auto transition-opacity">
     </div>
@@ -237,15 +254,12 @@
           </div>
         </div>
 
-        <!-- Size Variant Selector Section -->
         <div class="border-t border-zinc-100 pt-4">
           <label class="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-2.5">Pilih Varian / Suhu:</label>
           <div id="variant-chips-container" class="flex space-x-2.5">
-            <!-- Rendered dynamically by app.js -->
           </div>
         </div>
 
-        <!-- Custom Mix Section -->
         <div class="border-t border-zinc-100 pt-4">
           <div class="flex items-center justify-between mb-2">
             <div>
@@ -262,7 +276,7 @@
 
           <div id="mix-section-content" class="hidden space-y-3 mt-2">
             <div id="mix-ingredients-container" class="space-y-2">
-              <!-- Populated dynamically by app.js -->
+
             </div>
 
             <div class="flex items-center space-x-2">
@@ -281,7 +295,6 @@
           </div>
         </div>
 
-        <!-- Customer Name Input -->
         <div class="border-t border-zinc-100 pt-4">
           <label class="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1.5">Nama Pelanggan:</label>
           <input type="text" id="customer-name-input"
@@ -289,7 +302,6 @@
             placeholder="Masukkan nama Anda...">
         </div>
 
-        <!-- Custom Notes -->
         <div class="border-t border-zinc-100 pt-4">
           <label class="text-xs font-semibold text-zinc-500 uppercase tracking-wider block mb-1.5">Catatan Pesanan / Instruksi Khusus:</label>
           <textarea id="mix-notes" rows="2"
@@ -297,11 +309,10 @@
             placeholder="Contoh: Less ice, gula 50%, atau catatan meja/takeaway..."></textarea>
         </div>
 
-        <!-- Pricing & Cashier Action CTAs -->
         <div class="border-t border-zinc-100 pt-4 flex items-center justify-between">
           <div class="flex flex-col">
             <span class="text-[10px] text-zinc-500 uppercase font-semibold">Estimasi Harga</span>
-            <!-- UBAH WARNA HARGA MENJADI HITAM -->
+
             <span id="drawer-price" class="text-lg font-bold text-zinc-950"></span>
           </div>
           <div class="w-7/12 flex flex-col space-y-2">
@@ -327,7 +338,6 @@
     </div>
   </div>
 
-  <!-- BOTTOM SHEET: Status Pesanan Saya -->
   <div id="cart-drawer" class="fixed inset-0 z-50 pointer-events-none flex flex-col justify-end">
     <div id="cart-overlay" class="absolute inset-0 bg-black/40 opacity-0 cursor-pointer pointer-events-auto transition-opacity">
     </div>
@@ -346,10 +356,21 @@
           </svg>
           Status Pesanan Saya
         </h3>
-        <button id="cart-close-btn" class="text-zinc-400 hover:text-zinc-600 p-1 text-sm font-semibold"
+        <button id="cart-close-btn" class="text-zinc-400 hover:text-zinc-600 p-1 text-sm font-semibold cursor-pointer"
           aria-label="Tutup status pesanan">
           Tutup
         </button>
+      </div>
+
+      <div class="px-5 py-2.5 bg-zinc-50 border-b border-zinc-200">
+        <label for="order-lookup-input" class="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Cari / Pulihkan Pesanan (Tanpa Login)</label>
+        <div class="flex space-x-2">
+          <input type="text" id="order-lookup-input" placeholder="Masukkan ID Pesanan (misal: ORD-123456) atau Nama Anda..."
+            class="flex-1 bg-white border border-zinc-200 rounded-xl px-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-amber-500 transition-colors">
+          <button type="button" id="order-lookup-btn" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer">
+            Lacak
+          </button>
+        </div>
       </div>
 
       <div class="overflow-y-auto px-5 py-4 flex-1 max-h-[70vh] no-scrollbar">
@@ -365,7 +386,7 @@
 
         <div id="cart-content-state" class="space-y-4">
           <div id="cart-items-container" class="space-y-3">
-            <!-- Rendered dynamically by app.js -->
+ 
           </div>
         </div>
       </div>
@@ -384,14 +405,16 @@
     </div>
   </div>
 
-  <!-- Core Javascript -->
+  <!-- Firebase Cloud Sync SDK & Config -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="db.js"></script>
   <script src="app.js"></script>
 
-  <!-- Modal Struk Pembelian (Printable) -->
   <div id="receipt-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] hidden opacity-0 transition-opacity duration-300 pointer-events-auto select-auto">
     <div class="bg-white text-zinc-950 p-6 rounded-xl shadow-2xl w-80 max-w-full font-mono text-sm border border-zinc-200">
-        
-        <!-- Konten Area Struk -->
+
         <div id="receipt-print-area" class="border-b border-dashed border-zinc-300 pb-4">
             <div class="text-center mb-4">
                 <h2 class="text-lg font-bold uppercase tracking-wider">Kollabora Cafe</h2>
@@ -418,14 +441,12 @@
                 </div>
             </div>
             
-            <!-- Daftar Item Menu -->
             <div class="space-y-2 mb-4" id="receipt-items">
-                <!-- Contoh Item (Akan diisi otomatis lewat JS) -->
+
             </div>
             
-            <!-- Total & Pembayaran -->
             <div class="border-t border-dashed border-zinc-300 pt-3 space-y-1 text-xs">
-                <!-- UBAH WARNA TOTAL MENJADI HITAM PEKAT -->
+
                 <div class="flex justify-between text-sm font-bold text-zinc-950">
                     <span>TOTAL:</span>
                     <span id="receipt-total">Rp 0</span>
@@ -441,8 +462,7 @@
                 <p>Selamat Menikmati!</p>
             </div>
         </div>
-        
-        <!-- Tombol Aksi di Modal -->
+
         <div class="mt-4 flex space-x-2 relative z-50">
             <button onclick="printReceipt()" class="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-2 px-4 rounded-lg transition-colors text-center text-xs cursor-pointer">
                 Cetak Struk

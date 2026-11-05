@@ -132,16 +132,24 @@ h1, h2, h3, h4, h5, h6 {
   scrollbar-width: none;
 }
 
-/* Gold Gradient Button */
+/* Gold Solid Button (Non-Gradient Design) */
 .btn-gold {
-  background: linear-gradient(135deg, #d4af37 0%, #aa7c11 100%);
-  color: #000;
+  background-color: #d4af37;
+  color: #09090b;
   font-weight: 600;
-  transition: opacity 0.2s ease, transform 0.1s ease;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.btn-gold:hover {
+  background-color: #e5be3e;
 }
 .btn-gold:active {
   transform: scale(0.97);
-  opacity: 0.9;
+  background-color: #c49f2e;
+}
+
+:focus-visible {
+  outline: 2px solid #d4af37;
+  outline-offset: 2px;
 }
 
 .btn-secondary {
@@ -155,27 +163,23 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Active Category Chip */
 .chip-active {
   background-color: #d4af37;
   color: #000;
   font-weight: 600;
 }
 
-/* Barcode visual */
 .barcode-line {
   height: 60px;
   background-color: #000;
   margin: 0 1px;
 }
 
-/* CSS Patch: Prevent closed drawer overlays from blocking page clicks */
 #detail-drawer.pointer-events-none *,
 #cart-drawer.pointer-events-none * {
   pointer-events: none !important;
 }
 
-/* ==================== POS SIDE PANEL & FLEX LAYOUT ==================== */
 #pos-layout {
   display: flex;
   width: 100%;
@@ -205,9 +209,10 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: -4px 0 25px rgba(0, 0, 0, 0.08);
 }
 
-/* When POS is active (Menu selected / Cart has items) */
-#pos-layout.pos-active #catalog-area {
-  flex: 1 1 calc(100% - 380px);
+@media (min-width: 768px) {
+  #pos-layout.pos-active #catalog-area {
+    flex: 1 1 calc(100% - 380px);
+  }
 }
 
 @media (min-width: 1024px) {
@@ -229,8 +234,13 @@ h1, h2, h3, h4, h5, h6 {
     position: fixed;
     top: 0;
     right: 0;
+    width: 100% !important;
+    max-width: 100% !important;
     height: 100vh;
     z-index: 50;
+  }
+  #pos-layout.pos-active #catalog-area {
+    flex: 1 1 100%;
   }
 }
 
@@ -254,7 +264,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Smooth product item add keyframes */
 @keyframes cartItemSlideIn {
   from {
     opacity: 0;
@@ -271,11 +280,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media print {
-    /* Sembunyikan semua elemen di halaman web */
+  
     body * {
         visibility: hidden;
     }
-    /* Tampilkan hanya area cetak struk */
     #receipt-print-area, #receipt-print-area * {
         visibility: visible;
     }

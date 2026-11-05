@@ -1,4 +1,4 @@
-// Premium Kasir Cafe Dataset dengan Varian Suhu Ice / Hot
+
 const DEFAULT_PRODUCTS = [
   {
     id: 'aetheria',
@@ -58,90 +58,73 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
-// Helper Muat Produk dari LocalStorage (Dengan Migrasi Varian & Image Fix Khusus Cafe)
+const escapeHtml = (typeof KollaboraDB !== 'undefined' && KollaboraDB.escapeHtml)
+  ? KollaboraDB.escapeHtml
+  : function (str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
 function loadProductsFromStorage() {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getProducts();
+  }
   let stored = null;
   try {
     stored = JSON.parse(localStorage.getItem('cafe_store_products'));
   } catch (e) {
     stored = null;
   }
-
-  if (!stored || !Array.isArray(stored) || stored.some(p => p.variants && p.variants.some(v => v.size && v.size.includes('ml')))) {
-    localStorage.setItem('cafe_store_products', JSON.stringify(DEFAULT_PRODUCTS));
-    stored = DEFAULT_PRODUCTS;
-  } else {
-    let updated = false;
-    stored.forEach(p => {
-      if (p.image === 'assets/americano.jpg' || !p.image || p.image.includes('perfume')) {
-        if (p.id === 'aetheria') p.image = 'assets/americano.png';
-        else if (p.id === 'oud-nocturne') p.image = 'assets/Mocha Latte.png';
-        else if (p.id === 'thalassa') p.image = 'assets/carbonara.png';
-        else if (p.id === 'solstice') p.image = 'assets/french fries.png';
-        else p.image = 'assets/americano.png';
-        updated = true;
-      }
-    });
-    if (updated) {
-      localStorage.setItem('cafe_store_products', JSON.stringify(stored));
-    }
-  }
-  return stored;
+  return stored || DEFAULT_PRODUCTS;
 }
 
-// Helper Muat Kategori dari LocalStorage (Key: 'kollabora_kategori')
 const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
 
 function getKollaboraCategories() {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getCategories();
+  }
   try {
     const raw = localStorage.getItem('kollabora_kategori');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
-  } catch (e) {
-    console.error('Gagal membaca kollabora_kategori:', e);
-  }
-  localStorage.setItem('kollabora_kategori', JSON.stringify(DEFAULT_CATEGORIES));
+  } catch (e) { /* ignore */ }
   return [...DEFAULT_CATEGORIES];
 }
 
 let PRODUCTS = loadProductsFromStorage();
 
-// Helper Storage Transaksi Konsisten (Key: 'transactions')
-function getTransactionsFromStorage() {
+function getTransactionsFromStorage(guestOnly = false) {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getTransactions(guestOnly);
+  }
   let txs = [];
   try {
     const raw = localStorage.getItem('transactions');
     if (raw) txs = JSON.parse(raw);
   } catch (e) { console.error(e); }
-
-  if (!Array.isArray(txs) || txs.length === 0) {
-    try {
-      const oldRaw = localStorage.getItem('cafe_orders');
-      if (oldRaw) {
-        const oldOrders = JSON.parse(oldRaw);
-        if (Array.isArray(oldOrders) && oldOrders.length > 0) {
-          txs = oldOrders;
-          localStorage.setItem('transactions', JSON.stringify(txs));
-        }
-      }
-    } catch (e) { console.error(e); }
-  }
   return txs;
 }
 
 function saveTransactionToStorage(newTx) {
-  const txs = getTransactionsFromStorage();
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.saveTransaction(newTx);
+  }
+  const txs = getTransactionsFromStorage(false);
   txs.push(newTx);
   localStorage.setItem('transactions', JSON.stringify(txs));
   localStorage.setItem('cafe_orders', JSON.stringify(txs));
 }
 
 function initDatabase() {
-  getTransactionsFromStorage();
+  getTransactionsFromStorage(false);
 }
 
 initDatabase();
@@ -157,11 +140,9 @@ let state = {
   activeMixIngredients: []
 };
 
-// POS Cart State (Side Panel Kanan)
 let posCart = [];
 let selectedPaymentMethod = 'Cash';
 
-// Elements
 const productGrid = document.getElementById('product-grid');
 const searchInput = document.getElementById('search-input');
 const categoryChips = document.getElementById('category-chips');
@@ -169,7 +150,6 @@ const readyFilterToggle = document.getElementById('ready-filter-toggle');
 const cartFloatingBtn = document.getElementById('cart-floating-btn');
 const cartBadge = document.getElementById('cart-badge');
 
-// Bottom Sheet Elements
 const detailDrawer = document.getElementById('detail-drawer');
 const detailOverlay = document.getElementById('detail-overlay');
 const detailSheet = document.getElementById('detail-sheet');
@@ -178,12 +158,10 @@ const cartDrawer = document.getElementById('cart-drawer');
 const cartOverlay = document.getElementById('cart-overlay');
 const cartSheet = document.getElementById('cart-sheet');
 
-// Format Rupiah helper
 function formatRupiah(amount) {
   return 'Rp ' + (amount || 0).toLocaleString('id-ID');
 }
 
-// Toast Notifikasi Visual
 function showToast(msg) {
   let toast = document.getElementById('pos-toast-notification');
   if (!toast) {
@@ -201,7 +179,6 @@ function showToast(msg) {
   }, 2500);
 }
 
-// Update floating badge for buyer orders status
 function updateCartBadge() {
   const orders = getTransactionsFromStorage();
   const activeCount = orders.filter(o => state.myOrderIds.includes(o.id) && (o.status === 'pending' || o.status === 'proses')).length;
@@ -224,8 +201,6 @@ function updateCartBadge() {
 function reloadProductsFromStorage() {
   PRODUCTS = loadProductsFromStorage();
 }
-
-// ==================== LOGIKA POS SIDE PANEL (PANEL KANAN) ====================
 
 function openOrderPanel() {
   const layout = document.getElementById('pos-layout');
@@ -362,11 +337,11 @@ function renderPosCart() {
     const itemCard = document.createElement('div');
     itemCard.className = 'bg-zinc-50 border border-zinc-200 rounded-xl p-3 flex space-x-3 items-center animate-cart-item relative group shadow-sm';
     itemCard.innerHTML = `
-      <img src="${item.image || 'assets/americano.png'}" alt="${item.name}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-14 h-14 object-cover rounded-lg border border-zinc-200 shrink-0 bg-white">
+      <img src="${item.image || 'assets/americano.png'}" alt="${escapeHtml(item.name)}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-14 h-14 object-cover rounded-lg border border-zinc-200 shrink-0 bg-white">
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
-          <h4 class="text-xs font-extrabold text-zinc-900 truncate">${item.name}</h4>
-          <button onclick="removePosCartItem('${item.cartId}')" class="text-zinc-400 hover:text-red-500 p-1 transition-colors cursor-pointer" title="Hapus item">
+          <h4 class="text-xs font-extrabold text-zinc-900 truncate">${escapeHtml(item.name)}</h4>
+          <button onclick="removePosCartItem('${escapeHtml(item.cartId)}')" class="text-zinc-400 hover:text-red-500 p-1 transition-colors cursor-pointer" title="Hapus item">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
@@ -375,20 +350,20 @@ function renderPosCart() {
         
         <div class="flex items-center space-x-1.5 mt-1">
           <span class="text-[10px] text-zinc-500 font-medium">Suhu:</span>
-          <select onchange="updatePosCartItemVariant('${item.cartId}', this.value)" class="bg-white border border-zinc-200 rounded-md text-[10px] text-zinc-800 py-0.5 px-1 font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+          <select onchange="updatePosCartItemVariant('${escapeHtml(item.cartId)}', this.value)" class="bg-white border border-zinc-200 rounded-md text-[10px] text-zinc-800 py-0.5 px-1 font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
             ${variantOptionsHtml}
           </select>
         </div>
 
-        ${item.ratioNotes ? `<p class="text-[9px] text-amber-600 font-medium italic mt-0.5 truncate">${item.ratioNotes}</p>` : ''}
+        ${item.ratioNotes ? `<p class="text-[9px] text-amber-600 font-medium italic mt-0.5 truncate">${escapeHtml(item.ratioNotes)}</p>` : ''}
 
         <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-zinc-200/60">
           <span class="text-xs font-bold text-amber-600">${formatRupiah(item.price * item.quantity)}</span>
           
           <div class="flex items-center space-x-1.5 bg-white border border-zinc-200 rounded-lg px-1.5 py-0.5 shadow-sm">
-            <button onclick="updatePosCartQuantity('${item.cartId}', -1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">-</button>
+            <button onclick="updatePosCartQuantity('${escapeHtml(item.cartId)}', -1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">-</button>
             <span class="text-xs font-bold text-zinc-900 w-5 text-center">${item.quantity}</span>
-            <button onclick="updatePosCartQuantity('${item.cartId}', 1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">+</button>
+            <button onclick="updatePosCartQuantity('${escapeHtml(item.cartId)}', 1)" class="w-5 h-5 flex items-center justify-center text-zinc-600 hover:text-zinc-900 font-extrabold text-xs active:scale-95 transition-all cursor-pointer">+</button>
           </div>
         </div>
       </div>
@@ -544,7 +519,6 @@ function checkoutPosOrder() {
   showReceipt(newTransaction, receiptItems);
 }
 
-// Render Category Chips Dinamis dari LocalStorage (kollabora_kategori)
 function renderCategoryChips() {
   const container = document.getElementById('category-chips');
   if (!container) return;
@@ -578,7 +552,6 @@ function renderCategoryChips() {
   });
 }
 
-// Render Product Catalog (Badge & Tombol + di atas gambar dihapus)
 function renderProducts() {
   reloadProductsFromStorage();
   if (!productGrid) return;
@@ -613,8 +586,7 @@ function renderProducts() {
 
     const card = document.createElement('div');
     card.className = 'glass-card rounded-2xl overflow-hidden flex flex-col group cursor-pointer border border-zinc-200/60 hover:border-amber-500/50 transition-all shadow-sm bg-white text-zinc-900';
-    
-    // Tampilan card bersih tanpa badge stok dan tanpa tombol + di atas foto
+  
     card.innerHTML = `
       <div class="relative aspect-[4/3] sm:aspect-[4/5] bg-zinc-100 overflow-hidden">
         <img src="${p.image || 'assets/americano.png'}" alt="${p.name}" onerror="this.onerror=null;this.src='assets/americano.png';" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
@@ -1010,9 +982,61 @@ document.addEventListener('DOMContentLoaded', () => {
       updateMixTotalRatio();
     });
   }
+
+  // Real-time synchronization listeners (KollaboraDB Broadcast & Cloud)
+  if (typeof KollaboraDB !== 'undefined') {
+    KollaboraDB.on('products', (updatedProducts) => {
+      PRODUCTS = updatedProducts || KollaboraDB.getProducts();
+      renderProducts();
+    });
+
+    KollaboraDB.on('categories', () => {
+      renderCategoryChips();
+      renderProducts();
+    });
+
+    KollaboraDB.on('orders', () => {
+      updateCartBadge();
+      const cartSheetEl = document.getElementById('cart-sheet');
+      if (cartSheetEl && !cartSheetEl.classList.contains('translate-y-full')) {
+        renderBuyerOrdersStatus();
+      }
+    });
+  }
+
+  // Order recovery without login handler
+  const lookupBtn = document.getElementById('order-lookup-btn');
+  const lookupInput = document.getElementById('order-lookup-input');
+  if (lookupBtn && lookupInput) {
+    const handleLookup = () => {
+      const query = lookupInput.value.trim();
+      if (!query) {
+        showToast('Masukkan ID Pesanan atau Nama Pemesan');
+        return;
+      }
+      const matches = (typeof KollaboraDB !== 'undefined') ? KollaboraDB.lookupOrder(query) : [];
+      if (matches.length === 0) {
+        showToast('Pesanan tidak ditemukan dengan kata kunci tersebut');
+        return;
+      }
+      matches.forEach(m => {
+        if (typeof KollaboraDB !== 'undefined') KollaboraDB.linkOrderToGuest(m.id);
+        if (!state.myOrderIds.includes(m.id)) state.myOrderIds.push(m.id);
+      });
+      localStorage.setItem('buyer_order_ids', JSON.stringify(state.myOrderIds));
+      renderBuyerOrdersStatus();
+      updateCartBadge();
+      showToast(`Ditemukan ${matches.length} pesanan & ditambahkan ke riwayat Anda!`);
+      lookupInput.value = '';
+    };
+
+    lookupBtn.addEventListener('click', handleLookup);
+    lookupInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLookup();
+    });
+  }
 });
 
-// Render Status Pesanan Pembeli di Bottom Sheet Cart Drawer
 function renderBuyerOrdersStatus() {
   const emptyState = document.getElementById('cart-empty-state');
   const contentState = document.getElementById('cart-content-state');
@@ -1020,8 +1044,9 @@ function renderBuyerOrdersStatus() {
 
   if (!container) return;
 
-  const allTxs = getTransactionsFromStorage();
-  const myTxs = allTxs.filter(o => state.myOrderIds.includes(o.id)).reverse();
+  const myTxs = (typeof KollaboraDB !== 'undefined')
+    ? KollaboraDB.getTransactions(true).reverse()
+    : getTransactionsFromStorage(true).filter(o => state.myOrderIds.includes(o.id)).reverse();
 
   if (myTxs.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
@@ -1051,23 +1076,23 @@ function renderBuyerOrdersStatus() {
     card.innerHTML = `
       <div class="flex items-center justify-between border-b border-zinc-200 pb-2">
         <div>
-          <span class="text-xs font-bold text-zinc-900">${tx.id}</span>
-          <p class="text-[10px] text-zinc-500">${dateStr}</p>
+          <span class="text-xs font-bold text-zinc-900">${escapeHtml(tx.id)}</span>
+          <p class="text-[10px] text-zinc-500">${escapeHtml(dateStr)}</p>
         </div>
         <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadgeClass}">${statusText}</span>
       </div>
       
       <div class="text-xs space-y-1">
         <div class="flex justify-between text-zinc-600">
-          <span>Pemesan: <strong class="text-zinc-800">${tx.customer_name}</strong></span>
-          <span>Metode: <strong class="text-zinc-800">${tx.metode_pembayaran || 'Cash'}</strong></span>
+          <span>Pemesan: <strong class="text-zinc-800">${escapeHtml(tx.customer_name)}</strong></span>
+          <span>Metode: <strong class="text-zinc-800">${escapeHtml(tx.metode_pembayaran || 'Cash')}</strong></span>
         </div>
-        <p class="text-[11px] text-zinc-700 font-medium pt-1">${tx.ratio_notes || '-'}</p>
+        <p class="text-[11px] text-zinc-700 font-medium pt-1">${escapeHtml(tx.ratio_notes || '-')}</p>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-zinc-200/60">
         <span class="text-xs font-extrabold text-amber-600">${formatRupiah(tx.total_price)}</span>
-        <button onclick="showReceiptModalById('${tx.id}')" class="text-[11px] font-semibold text-zinc-700 hover:text-amber-600 bg-white border border-zinc-200 px-3 py-1 rounded-lg shadow-xs transition-colors cursor-pointer">
+        <button onclick="showReceiptModalById('${escapeHtml(tx.id)}')" class="text-[11px] font-semibold text-zinc-700 hover:text-amber-600 bg-white border border-zinc-200 px-3 py-1 rounded-lg shadow-xs transition-colors cursor-pointer">
           Lihat Struk
         </button>
       </div>
@@ -1076,7 +1101,6 @@ function renderBuyerOrdersStatus() {
   });
 }
 
-// Modal Struk Pembelian
 function showReceipt(transaction, items) {
   const modal = document.getElementById('receipt-modal');
   if (!modal) return;

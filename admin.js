@@ -58,6 +58,18 @@ const DEFAULT_PRODUCTS = [
   }
 ];
 
+const escapeHtml = (typeof KollaboraDB !== 'undefined' && KollaboraDB.escapeHtml)
+  ? KollaboraDB.escapeHtml
+  : function (str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
 // Admin Credentials
 const ADMIN_PASSWORD_REQUIRED = 'admin123';
 let currentFormImageDataUrl = 'assets/americano.png';
@@ -67,76 +79,40 @@ function formatRupiah(amount) {
   return 'Rp ' + (Number(amount) || 0).toLocaleString('id-ID');
 }
 
-// Inisialisasi Storage Produk (Sync dengan cafe_store_products)
+// Inisialisasi Storage Produk (Sync dengan KollaboraDB)
 function loadAdminProducts() {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getProducts();
+  }
   let stored = null;
   try {
     stored = JSON.parse(localStorage.getItem('cafe_store_products'));
-    if (!stored) stored = JSON.parse(localStorage.getItem('parfum_store_products'));
   } catch (e) {
     stored = null;
   }
-
-  if (!stored || !Array.isArray(stored) || stored.some(p => p.variants && p.variants.some(v => v.size && v.size.includes('ml')))) {
-    localStorage.setItem('cafe_store_products', JSON.stringify(DEFAULT_PRODUCTS));
-    localStorage.setItem('parfum_store_products', JSON.stringify(DEFAULT_PRODUCTS));
-    stored = DEFAULT_PRODUCTS;
-  } else {
-    let updated = false;
-    stored.forEach(p => {
-      if (p.image === 'assets/americano.jpg' || !p.image || p.image.includes('perfume')) {
-        if (p.id === 'aetheria') p.image = 'assets/americano.png';
-        else if (p.id === 'oud-nocturne') p.image = 'assets/Mocha Latte.png';
-        else if (p.id === 'thalassa') p.image = 'assets/carbonara.png';
-        else if (p.id === 'solstice') p.image = 'assets/french fries.png';
-        else p.image = 'assets/americano.png';
-        updated = true;
-      }
-    });
-    if (updated) {
-      localStorage.setItem('cafe_store_products', JSON.stringify(stored));
-      localStorage.setItem('parfum_store_products', JSON.stringify(stored));
-    }
-  }
-  return stored;
+  return stored || DEFAULT_PRODUCTS;
 }
 
 let PRODUCTS = loadAdminProducts();
 let searchQuery = '';
 
-// Helper Storage Transaksi Konsisten (Key: 'transactions')
+// Helper Storage Transaksi (Key: 'transactions')
 function getTransactionsFromStorage() {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getTransactions(false);
+  }
   let txs = [];
   try {
     const raw = localStorage.getItem('transactions');
     if (raw) txs = JSON.parse(raw);
   } catch (e) { console.error(e); }
-
-  if (!Array.isArray(txs) || txs.length === 0) {
-    try {
-      const oldRaw = localStorage.getItem('cafe_orders') || localStorage.getItem('em_parfume_orders');
-      if (oldRaw) {
-        const oldOrders = JSON.parse(oldRaw);
-        if (Array.isArray(oldOrders) && oldOrders.length > 0) {
-          txs = oldOrders.map(o => ({
-            id: o.id,
-            date: o.date || new Date().toISOString(),
-            customer_name: o.customer_name || 'Pelanggan',
-            total_price: Number(o.total_price) || 0,
-            status: o.status || 'selesai',
-            metode_pembayaran: o.metode_pembayaran || 'Cash',
-            ratio_notes: o.ratio_notes || '-',
-            items: o.items || []
-          }));
-          localStorage.setItem('transactions', JSON.stringify(txs));
-        }
-      }
-    } catch (e) { console.error(e); }
-  }
   return txs;
 }
 
 function saveTransactionToStorage(newTx) {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.saveTransaction(newTx);
+  }
   const txs = getTransactionsFromStorage();
   txs.push(newTx);
   localStorage.setItem('transactions', JSON.stringify(txs));
@@ -183,48 +159,46 @@ function handleLogout() {
   checkAuthSession();
 }
 
-// ==================== MANAJEMEN KATEGORI DINAMIS (KOLLABORA_KATEGORI) ====================
 const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
 let adminSelectedCategory = 'Semua';
 
-// Helper Ambil Kategori dari LocalStorage (Inisialisasi jika belum ada)
 function getKollaboraCategories() {
+  if (typeof KollaboraDB !== 'undefined') {
+    return KollaboraDB.getCategories();
+  }
   try {
     const raw = localStorage.getItem('kollabora_kategori');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
     console.error('Gagal membaca kollabora_kategori:', e);
   }
-  // Inisialisasi default jika belum ada atau kosong
-  localStorage.setItem('kollabora_kategori', JSON.stringify(DEFAULT_CATEGORIES));
   return [...DEFAULT_CATEGORIES];
 }
 
-// Simpan Kategori ke LocalStorage
 function saveKollaboraCategories(categories) {
-  localStorage.setItem('kollabora_kategori', JSON.stringify(categories));
+  if (typeof KollaboraDB !== 'undefined') {
+    KollaboraDB.saveCategories(categories);
+  } else {
+    localStorage.setItem('kollabora_kategori', JSON.stringify(categories));
+  }
   window.dispatchEvent(new CustomEvent('kollabora_categories_updated', { detail: categories }));
 }
 
-// Render Dropdown Pilihan Kategori di Modal Tambah/Edit Produk
 function populateCategorySelect(selectedValue = '') {
   const select = document.getElementById('kategori') || document.getElementById('form-product-category');
   if (!select) return;
 
   const categories = getKollaboraCategories();
   
-  // Jika selectedValue tidak ada dalam list kategori (misal kategori lama), masukkan sementara agar tidak hilang
   const optionsList = [...categories];
   if (selectedValue && !optionsList.includes(selectedValue)) {
     optionsList.unshift(selectedValue);
   }
 
-  select.innerHTML = optionsList.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+  select.innerHTML = optionsList.map(cat => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`).join('');
 
   if (selectedValue && optionsList.includes(selectedValue)) {
     select.value = selectedValue;
@@ -233,7 +207,6 @@ function populateCategorySelect(selectedValue = '') {
   }
 }
 
-// Render Daftar Kategori di Modal Kelola Kategori
 function renderCategoryList() {
   const container = document.getElementById('category-list-container');
   const countBadge = document.getElementById('category-count-badge');
@@ -254,17 +227,15 @@ function renderCategoryList() {
   if (emptyState) emptyState.classList.add('hidden');
 
   container.innerHTML = categories.map((cat) => {
-    // Hitung jumlah produk yang menggunakan kategori ini
     const usedCount = PRODUCTS.filter(p => p.category && p.category.toLowerCase() === cat.toLowerCase()).length;
-    const escapedCat = cat.replace(/'/g, "\\'");
     return `
       <div class="flex items-center justify-between p-3 bg-zinc-800/80 rounded-xl border border-white/5 hover:border-amber-500/20 transition-all">
         <div class="flex items-center space-x-2.5">
           <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span class="font-semibold text-sm text-zinc-100">${cat}</span>
+          <span class="font-semibold text-sm text-zinc-100">${escapeHtml(cat)}</span>
           <span class="text-[10px] text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-full border border-white/5 font-mono">${usedCount} Produk</span>
         </div>
-        <button type="button" onclick="deleteCategory('${escapedCat}')" class="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors cursor-pointer" title="Hapus kategori ${cat}">
+        <button type="button" onclick="deleteCategory('${encodeURIComponent(cat)}')" class="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors cursor-pointer" title="Hapus kategori ${escapeHtml(cat)}">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
@@ -274,7 +245,6 @@ function renderCategoryList() {
   }).join('');
 }
 
-// Tambah Kategori Baru
 function handleAddCategory(e) {
   if (e) e.preventDefault();
   const input = document.getElementById('new-category-input');
@@ -304,8 +274,8 @@ function handleAddCategory(e) {
   renderProductTable();
 }
 
-// Hapus Kategori
-function deleteCategory(categoryName) {
+function deleteCategory(encodedName) {
+  const categoryName = decodeURIComponent(encodedName);
   const categories = getKollaboraCategories();
   const usedCount = PRODUCTS.filter(p => p.category && p.category.toLowerCase() === categoryName.toLowerCase()).length;
 
@@ -321,14 +291,12 @@ function deleteCategory(categoryName) {
   const updated = categories.filter(c => c.toLowerCase() !== categoryName.toLowerCase());
   saveKollaboraCategories(updated);
 
-  // Auto Re-render
   renderCategoryList();
   populateCategorySelect();
   renderAdminCategoryChips();
   renderProductTable();
 }
 
-// Reset Kategori ke Nilai Default
 function resetCategoriesToDefault() {
   if (confirm('Pulihkan daftar kategori ke setelan default (Coffe, Coklat, Makanan, Camilan)?')) {
     saveKollaboraCategories([...DEFAULT_CATEGORIES]);
@@ -339,7 +307,6 @@ function resetCategoriesToDefault() {
   }
 }
 
-// Buka Modal Kelola Kategori
 function openCategoryModal() {
   const modal = document.getElementById('category-modal');
   const overlay = document.getElementById('category-modal-overlay');
@@ -357,7 +324,6 @@ function openCategoryModal() {
   }, 10);
 }
 
-// Tutup Modal Kelola Kategori
 function closeCategoryModal() {
   const modal = document.getElementById('category-modal');
   const overlay = document.getElementById('category-modal-overlay');
@@ -372,7 +338,6 @@ function closeCategoryModal() {
   }, 300);
 }
 
-// Render Filter Chips Kategori di Dashboard Admin
 function renderAdminCategoryChips() {
   const container = document.getElementById('admin-category-chips');
   if (!container) return;
@@ -404,7 +369,6 @@ function renderAdminCategoryChips() {
   });
 }
 
-// ==================== RENDER ADMIN DASHBOARD ====================
 
 function renderAdminDashboard() {
   PRODUCTS = loadAdminProducts();
@@ -414,7 +378,6 @@ function renderAdminDashboard() {
   renderTransactionHistory();
 }
 
-// Helper Filter Transaksi berdasarkan Rentang Waktu Dropdown
 function filterTransactionsByTime(transactions, filterType) {
   if (filterType === 'all') return transactions;
 
@@ -523,7 +486,6 @@ function renderProductTable() {
   });
 }
 
-// ==================== MODAL ADD / EDIT PRODUCT & IMAGE UPLOAD ====================
 
 function handleImageFileUpload(event) {
   const file = event.target.files[0];
@@ -700,8 +662,12 @@ function handleProductFormSubmit(event) {
     PRODUCTS.push(newProd);
   }
 
-  localStorage.setItem('cafe_store_products', JSON.stringify(PRODUCTS));
-  localStorage.setItem('parfum_store_products', JSON.stringify(PRODUCTS));
+  if (typeof KollaboraDB !== 'undefined') {
+    KollaboraDB.saveProducts(PRODUCTS);
+  } else {
+    localStorage.setItem('cafe_store_products', JSON.stringify(PRODUCTS));
+    localStorage.setItem('parfum_store_products', JSON.stringify(PRODUCTS));
+  }
   closeProductModal();
   renderAdminDashboard();
 }
@@ -714,13 +680,16 @@ window.editProduct = function (id) {
 window.deleteProduct = function (id) {
   if (confirm('Apakah Anda yakin ingin menghapus produk ini?')) {
     PRODUCTS = PRODUCTS.filter(p => p.id !== id);
-    localStorage.setItem('cafe_store_products', JSON.stringify(PRODUCTS));
-    localStorage.setItem('parfum_store_products', JSON.stringify(PRODUCTS));
+    if (typeof KollaboraDB !== 'undefined') {
+      KollaboraDB.saveProducts(PRODUCTS);
+    } else {
+      localStorage.setItem('cafe_store_products', JSON.stringify(PRODUCTS));
+      localStorage.setItem('parfum_store_products', JSON.stringify(PRODUCTS));
+    }
     renderAdminDashboard();
   }
 };
 
-// ==================== TRANSAKSI & STRUKS ====================
 
 function renderTransactionHistory(customList = null) {
   const tbody = document.getElementById('transaction-table-body');
@@ -822,11 +791,13 @@ function simulateTransaction() {
 
 function clearTransactions() {
   if (confirm('Apakah Anda yakin ingin menghapus seluruh riwayat transaksi?')) {
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('cafe_orders');
-    localStorage.removeItem('cafe_order_details');
-    localStorage.removeItem('em_parfume_orders');
-    localStorage.removeItem('em_parfume_order_details');
+    if (typeof KollaboraDB !== 'undefined') {
+      KollaboraDB.clearAllTransactions();
+    } else {
+      localStorage.removeItem('transactions');
+      localStorage.removeItem('cafe_orders');
+      localStorage.removeItem('cafe_order_details');
+    }
     renderAdminDashboard();
     alert('Seluruh riwayat transaksi berhasil dikosongkan.');
   }
@@ -906,7 +877,6 @@ function closeReceiptModal() {
   setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
-// Global functions attached to window
 window.getTransactionsFromStorage = getTransactionsFromStorage;
 window.saveTransactionToStorage = saveTransactionToStorage;
 window.filterTransactionsByDate = filterTransactionsByDate;
@@ -924,7 +894,6 @@ window.resetCategoriesToDefault = resetCategoriesToDefault;
 window.getKollaboraCategories = getKollaboraCategories;
 window.populateCategorySelect = populateCategorySelect;
 
-// Listen to storage event across tabs
 window.addEventListener('storage', (e) => {
   if (e.key === 'kollabora_kategori') {
     renderCategoryList();
@@ -934,12 +903,28 @@ window.addEventListener('storage', (e) => {
   }
 });
 
-// Initialization
 document.addEventListener('DOMContentLoaded', () => {
-  // Pastikan kategori awal tersimpan
+
   getKollaboraCategories();
 
   checkAuthSession();
+
+  // Real-time synchronization listeners
+  if (typeof KollaboraDB !== 'undefined') {
+    KollaboraDB.on('orders', () => {
+      renderAdminDashboard();
+    });
+    KollaboraDB.on('products', (prods) => {
+      PRODUCTS = prods || KollaboraDB.getProducts();
+      renderStats();
+      renderProductTable();
+    });
+    KollaboraDB.on('categories', () => {
+      renderAdminCategoryChips();
+      renderCategoryList();
+      populateCategorySelect();
+    });
+  }
 
   document.getElementById('login-form')?.addEventListener('submit', handleLogin);
   document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
@@ -960,7 +945,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('add-variant-row-btn')?.addEventListener('click', () => addVariantRow('Ice', 25000, 10));
   document.getElementById('product-form')?.addEventListener('submit', handleProductFormSubmit);
 
-  // Kategori Modal & Form Listeners
   document.getElementById('manage-category-btn')?.addEventListener('click', openCategoryModal);
   document.getElementById('nav-manage-category-btn')?.addEventListener('click', openCategoryModal);
   document.getElementById('category-modal-close-x')?.addEventListener('click', closeCategoryModal);
