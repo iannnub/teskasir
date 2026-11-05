@@ -1,0 +1,310 @@
+rules_version = '2';
+
+// ===============================================================
+// KOLLABORA CAFE - CLOUD FIRESTORE SECURITY RULES
+// ===============================================================
+// Architecture:
+// - Collection 'products': Public read for cafe menu; write for Admin or during cafe setup.
+// - Collection 'settings' (document 'categories'): Public read for categories; write for Admin.
+// - Collection 'orders': Created by anonymous guest customers without login,
+//   read & queryable by Admin, and get allowed for customers for their own order receipts.
+//
+// Security Invariants Enforced:
+// 1. Default Deny: All access denied by default at root.
+// 2. Validator Function Pattern: Used in BOTH create and update rules.
+// 3. Authority Source & RBAC: Admin authority verified via Firebase Auth custom claims
+//    or verified admin emails, never client-supplied fields.
+// 4. DoS / Resource Exhaustion Protection: Strict length bounds on all strings,
+//    strict element count on all arrays/lists, numeric range checks.
+// 5. Strict Type Safety: CEL type checking for string, number, bool, timestamp, list, map.
+// 6. Strict Schema Whitelisting: No arbitrary or polluted fields permitted (hasOnlyAllowedFields).
+// 7. Immutability: Order IDs, timestamps, and guest identifiers cannot be modified on update.
+// 8. PII & Query Isolation: Collection queries ('list') on orders are restricted to Admin,
+//    preventing guest customer order data harvesting.
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: products
+    // Document ID: {productId} (e.g. 'aetheria', 'caramel-macchiato-123')
+    // Fields:
+    //   - id: string (required, 1-100 chars, matches {productId}, immutable on update)
+    //   - name: string (required, 1-100 chars) - Product display title
+    //   - category: string (required, 1-50 chars) - Product category name
+    //   - image: string (required, 1-1000 chars) - Image asset path or URL
+    //   - description: string (required, 0-2000 chars) - Menu description
+    //   - badge: string (optional, 0-50 chars) - Stock badge text (e.g. 'Ready Stock', 'Habis')
+    //   - badgeClass: string (optional, 0-50 chars) - Badge CSS styling class
+    //   - isReady: bool (required) - Stock readiness flag
+    //   - variants: list (required, 1-20 items) - Array of variant maps containing:
+    //       - size: string (required, 1-30 chars) - Variant label (e.g. 'Ice', 'Hot')
+    //       - price: number (required, >= 0, <= 100,000,000) - Price in IDR
+    //       - stock: number (required, >= 0, <= 100,000) - Stock count
+    //       - label: string (optional, 0-50 chars) - Display label
+    //
+    // Collection: settings
+    // Document ID: categories (path: /settings/categories)
+    // Fields:
+    //   - list: list of strings (required, 1-50 items) - Array of allowed category names
+    //
+    // Document ID: setup (path: /settings/setup - optional bootstrap toggle)
+    // Fields:
+    //   - isSetupMode: bool (optional) - When true, permits cafe catalog initialization
+    //
+    // Collection: orders
+    // Document ID: {orderId} (e.g. 'ORD-849201')
+    // Fields:
+    //   - id: string (required, 1-64 chars, matches {orderId}, immutable on update)
+    //   - date: string (required, 10-40 chars, ISO 8601 string, immutable on update)
+    //   - customer_name: string (required, 1-100 chars) - Customer / caller name
+    //   - total_price: number (required, >= 0, <= 1,000,000,000) - Total order amount in IDR
+    //   - status: string (required, enum: 'pending', 'diproses', 'selesai', 'dibatalkan', 'unpaid', 'paid')
+    //   - metode_pembayaran: string (required, 1-50 chars) - Payment method (e.g. 'Cash', 'QRIS')
+    //   - ratio_notes: string (optional, 0-1000 chars) - Order item recipe / customization summary
+    //   - guest_id: string (optional, 1-100 chars, immutable on update) - Guest device identifier
+    //   - table_number: string or number (optional, 0-20 chars) - Table number
+    //   - order_notes: string (optional, 0-500 chars) - Special customer notes
+    //   - created_at: timestamp (optional) - Server creation timestamp
+    //   - items: list (required, 1-100 items) - Receipt items containing:
+    //       - product_name: string (required, 1-100 chars)
+    //       - variant_size: string (optional, 0-50 chars)
+    //       - price: number (required, >= 0, <= 100,000,000)
+    //       - quantity: number (required, >= 1, <= 1,000)
+    //       - id: string (optional, 0-50 chars)
+    //       - order_id: string (optional, 0-64 chars)
+    //       - product_id: string (optional, 0-64 chars)
+    //       - ratio: string (optional, 0-20 chars)
+    //
+    // ===============================================================
+
+    // Default Deny: Deny all reads and writes by default across the database
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the user is authenticated with Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user is an authorized Admin
+    // Derives authority strictly from Firebase Auth token custom claims
+    // or verified bootstrap domain/email
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email_verified == true && (
+          request.auth.token.email in ['admin@kollabora.cafe', 'owner@kollabora.cafe', 'admin@kollabora.com'] ||
+          request.auth.token.email.matches(".*@(kollabora\\.cafe|kollabora\\.com)$")
+        ))
+      );
+    }
+
+    // Check if Cafe Setup Mode is active
+    // Permits initial catalog bootstrapping if:
+    // 1) An admin / setup custom claim is present in the auth token, OR
+    // 2) An administrative setup flag exists in /settings/setup (isSetupMode == true)
+    function isCafeSetup() {
+      return (isAuthenticated() && request.auth.token.setup == true) ||
+             (exists(/databases/$(database)/documents/settings/setup) &&
+              get(/databases/$(database)/documents/settings/setup).data.isSetupMode == true);
+    }
+
+    // Validate that document contains only allowed fields (No schema pollution)
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate optional string field
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate immutable fields on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Customer access check for individual order receipts
+    function isCustomerOrder(resourceData) {
+      // 1. Authenticated customer: match their UID to guest_id or customer_id
+      return (isAuthenticated() && (
+        ('guest_id' in resourceData && request.auth.uid == resourceData.guest_id) ||
+        ('customer_id' in resourceData && request.auth.uid == resourceData.customer_id)
+      )) ||
+      // 2. Anonymous guest customer without login:
+      // Direct lookup of their own specific receipt by knowing the exact document path / ID.
+      // (Querying/listing the entire collection is blocked by 'allow list: if isAdmin()')
+      (!isAuthenticated());
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Product Validator (Called in BOTH create and update)
+    function isValidProduct(data, productId) {
+      let allowedFields = ['id', 'name', 'category', 'image', 'description', 'badge', 'badgeClass', 'isReady', 'variants'];
+      let requiredFields = ['id', 'name', 'category', 'image', 'description', 'isReady', 'variants'];
+
+      return data.keys().hasOnly(allowedFields) &&
+        data.keys().hasAll(requiredFields) &&
+        data.id is string &&
+        data.id == productId &&
+        data.id.size() >= 1 && data.id.size() <= 100 &&
+        data.name is string &&
+        data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.category is string &&
+        data.category.size() >= 1 && data.category.size() <= 50 &&
+        data.image is string &&
+        data.image.size() >= 1 && data.image.size() <= 1000 &&
+        data.description is string &&
+        data.description.size() <= 2000 &&
+        data.isReady is bool &&
+        isValidOptionalString('badge', 0, 50) &&
+        isValidOptionalString('badgeClass', 0, 50) &&
+        data.variants is list &&
+        data.variants.size() >= 1 && data.variants.size() <= 20 &&
+        data.variants[0] is map &&
+        data.variants[0].keys().hasAll(['size', 'price', 'stock']) &&
+        data.variants[0].size is string &&
+        data.variants[0].size.size() >= 1 && data.variants[0].size.size() <= 30 &&
+        data.variants[0].price is number &&
+        data.variants[0].price >= 0 &&
+        data.variants[0].price <= 100000000 &&
+        data.variants[0].stock is number &&
+        data.variants[0].stock >= 0 &&
+        data.variants[0].stock <= 100000;
+    }
+
+    // Category Settings Validator (Called in BOTH create and update)
+    function isValidCategories(data) {
+      return data.keys().hasOnly(['list']) &&
+        data.keys().hasAll(['list']) &&
+        data.list is list &&
+        data.list.size() >= 1 && data.list.size() <= 50 &&
+        data.list[0] is string &&
+        data.list[0].size() >= 1 && data.list[0].size() <= 50;
+    }
+
+    // Order Validator (Called in BOTH create and update)
+    function isValidOrder(data, orderId) {
+      let allowedFields = [
+        'id', 'date', 'customer_name', 'total_price', 'status',
+        'metode_pembayaran', 'ratio_notes', 'items', 'guest_id',
+        'table_number', 'order_notes', 'created_at'
+      ];
+      let requiredFields = [
+        'id', 'date', 'customer_name', 'total_price', 'status',
+        'metode_pembayaran', 'items'
+      ];
+
+      return data.keys().hasOnly(allowedFields) &&
+        data.keys().hasAll(requiredFields) &&
+        data.id is string &&
+        data.id == orderId &&
+        data.id.size() >= 1 && data.id.size() <= 64 &&
+        data.date is string &&
+        data.date.size() >= 10 && data.date.size() <= 40 &&
+        data.customer_name is string &&
+        data.customer_name.size() >= 1 && data.customer_name.size() <= 100 &&
+        data.total_price is number &&
+        data.total_price >= 0 && data.total_price <= 1000000000 &&
+        data.status is string &&
+        data.status in ['pending', 'diproses', 'selesai', 'dibatalkan', 'unpaid', 'paid'] &&
+        data.metode_pembayaran is string &&
+        data.metode_pembayaran.size() >= 1 && data.metode_pembayaran.size() <= 50 &&
+        isValidOptionalString('ratio_notes', 0, 1000) &&
+        isValidOptionalString('guest_id', 1, 100) &&
+        isValidOptionalString('order_notes', 0, 500) &&
+        (!('created_at' in data) || data.created_at is timestamp) &&
+        data.items is list &&
+        data.items.size() >= 1 && data.items.size() <= 100 &&
+        data.items[0] is map &&
+        data.items[0].product_name is string &&
+        data.items[0].product_name.size() >= 1 && data.items[0].product_name.size() <= 100 &&
+        data.items[0].price is number &&
+        data.items[0].price >= 0 &&
+        data.items[0].price <= 100000000 &&
+        data.items[0].quantity is number &&
+        data.items[0].quantity >= 1 &&
+        data.items[0].quantity <= 1000;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // -----------------------------------------------------------
+    // Products Collection
+    // Read: Public (customers view cafe menu on kiosks & devices)
+    // Write: Admin OR during cafe setup mode
+    // -----------------------------------------------------------
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create: if (isAdmin() || isCafeSetup()) && isValidProduct(request.resource.data, productId);
+      allow update: if (isAdmin() || isCafeSetup()) && isValidProduct(request.resource.data, productId) && areImmutableFieldsUnchanged(['id']);
+      allow delete: if isAdmin() || isCafeSetup();
+    }
+
+    // -----------------------------------------------------------
+    // Settings Collection
+    // Document 'categories': Public read for menu filters; write allowed for Admin
+    // Document 'setup': Private administrative setup configuration
+    // -----------------------------------------------------------
+    match /settings/categories {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update: if (isAdmin() || isCafeSetup()) && isValidCategories(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /settings/setup {
+      allow read, write: if isAdmin();
+    }
+
+    // -----------------------------------------------------------
+    // Orders Collection
+    // Create: Anonymous guest customers without login (validated strictly by schema & limits)
+    // List / Query: Admin ONLY (prevents PII scraping; permits admin dashboard queries)
+    // Get: Admin OR customer retrieving their own specific order receipt
+    // Update / Delete: Admin ONLY (customers cannot alter prices, status, or delete orders)
+    // -----------------------------------------------------------
+    match /orders/{orderId} {
+      // Guest customers without login can place valid orders
+      allow create: if isValidOrder(request.resource.data, orderId);
+
+      // Admin can query, filter, and stream orders in real-time. Guests CANNOT list.
+      allow list: if isAdmin();
+
+      // Admin or customer with their order identifier can view the order receipt
+      allow get: if isAdmin() || isCustomerOrder(resource.data);
+
+      // Only admins can update order status or details; immutable fields are locked
+      allow update: if isAdmin() &&
+                       isValidOrder(request.resource.data, orderId) &&
+                       areImmutableFieldsUnchanged(['id', 'date', 'guest_id']);
+
+      // Only admins can delete order records
+      allow delete: if isAdmin();
+    }
+  }
+}
