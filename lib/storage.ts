@@ -2,6 +2,7 @@ import { Product, Transaction } from './types';
 import { eventEmitter } from './events';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
 
@@ -104,8 +105,10 @@ async function kvSet<T>(key: string, value: T): Promise<boolean> {
   }
 }
 
-// Local Fallback Store File
-const DATA_DIR = path.join(process.cwd(), '.data');
+// Local Fallback Store File (supports Vercel Serverless /tmp writable scratchpad)
+const DATA_DIR = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? path.join(os.tmpdir(), 'kollabora_data')
+  : path.join(process.cwd(), '.data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
 
 interface LocalDB {
@@ -114,12 +117,18 @@ interface LocalDB {
   orders: Transaction[];
 }
 
+let memoryCache: LocalDB | null = null;
+
 function readLocalDB(): LocalDB {
+  if (memoryCache && Array.isArray(memoryCache.products) && memoryCache.products.length > 0) {
+    return memoryCache;
+  }
+
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      return {
+      const data: LocalDB = {
         products: Array.isArray(parsed.products) && parsed.products.length > 0
           ? parsed.products
           : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
@@ -130,6 +139,27 @@ function readLocalDB(): LocalDB {
           ? parsed.orders
           : []
       };
+      memoryCache = data;
+      return data;
+    }
+
+    // Check optional seed in project root
+    const seedFile = path.join(process.cwd(), '.data', 'db.json');
+    if (fs.existsSync(seedFile)) {
+      const raw = fs.readFileSync(seedFile, 'utf-8');
+      const parsed = JSON.parse(raw);
+      const data: LocalDB = {
+        products: Array.isArray(parsed.products) && parsed.products.length > 0
+          ? parsed.products
+          : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
+        categories: Array.isArray(parsed.categories) && parsed.categories.length > 0
+          ? parsed.categories
+          : [...DEFAULT_CATEGORIES],
+        orders: Array.isArray(parsed.orders) ? parsed.orders : []
+      };
+      writeLocalDB(data);
+      memoryCache = data;
+      return data;
     }
   } catch (e) {
     console.error('Error reading local db:', e);
@@ -141,10 +171,12 @@ function readLocalDB(): LocalDB {
     orders: []
   };
   writeLocalDB(initial);
+  memoryCache = initial;
   return initial;
 }
 
 function writeLocalDB(data: LocalDB) {
+  memoryCache = data;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });

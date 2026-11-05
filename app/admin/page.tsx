@@ -238,16 +238,71 @@ export default function AdminPage() {
     setIsProductModalOpen(true);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isCompressingImage, setIsCompressingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setFormImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      if (!file.type.startsWith('image/')) {
+        alert('File yang dipilih bukan gambar yang valid!');
+        return;
+      }
+      try {
+        setIsCompressingImage(true);
+        // Otomatis kompresi gambar di client: max 600px, JPEG 0.75 (~35KB)
+        // Mencegah error Vercel 4.5MB Payload limit dan mempercepat load gambar
+        const compressed = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('Gagal membaca file gambar'));
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('Gagal memuat gambar'));
+            img.onload = () => {
+              const maxWidth = 600;
+              const maxHeight = 600;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > maxWidth) {
+                  height = Math.round((height * maxWidth) / width);
+                  width = maxWidth;
+                }
+              } else {
+                if (height > maxHeight) {
+                  width = Math.round((width * maxHeight) / height);
+                  height = maxHeight;
+                }
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                resolve(ev.target?.result as string);
+                return;
+              }
+
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+
+              const compressedData = canvas.toDataURL('image/jpeg', 0.75);
+              resolve(compressedData);
+            };
+            img.src = ev.target?.result as string;
+          };
+          reader.readAsDataURL(file);
+        });
+
+        setFormImage(compressed);
+      } catch (err: any) {
+        console.error('Error compressing image:', err);
+        alert('Gagal mengompresi gambar: ' + (err?.message || 'Format tidak didukung'));
+      } finally {
+        setIsCompressingImage(false);
+      }
     }
   };
 
@@ -326,7 +381,18 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(productPayload)
       });
-      if (!res.ok) throw new Error('Gagal menyimpan produk');
+      if (!res.ok) {
+        let errMsg = `Gagal menyimpan produk (Status ${res.status})`;
+        try {
+          const errData = await res.json();
+          if (errData?.error) errMsg = errData.error;
+        } catch (_) {
+          if (res.status === 413) {
+            errMsg = 'Ukuran gambar/data terlalu besar untuk server (Batas Vercel 4.5MB). Harap gunakan foto dengan resolusi lebih kecil.';
+          }
+        }
+        throw new Error(errMsg);
+      }
       const savedFromServer = await res.json();
       mutate('/api/products', (current: Product[] = []) => {
         const idx = current.findIndex(p => p.id === finalId);
@@ -1071,9 +1137,13 @@ export default function AdminPage() {
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={isCompressingImage}
                       onChange={handleImageUpload}
-                      className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 cursor-pointer"
+                      className="block w-full text-xs text-zinc-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 cursor-pointer disabled:opacity-50"
                     />
+                    {isCompressingImage && (
+                      <p className="text-[11px] text-[#d4af37] animate-pulse">Mengompresi gambar otomatis...</p>
+                    )}
                     <input
                       type="text"
                       placeholder="Atau masukkan URL / path gambar..."
