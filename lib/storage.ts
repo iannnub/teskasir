@@ -3,7 +3,7 @@ import { eventEmitter } from './events';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createClient } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
 export const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
 
@@ -66,15 +66,15 @@ export const DEFAULT_PRODUCTS: Product[] = [
   }
 ];
 
-// Check for Vercel KV / Upstash Redis env vars
-function getKVClient() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// Check for Upstash Redis / Vercel KV env vars
+function getKVClient(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   try {
-    return createClient({ url, token });
+    return new Redis({ url, token });
   } catch (e) {
-    console.error('Failed to initialize Vercel KV client:', e);
+    console.error('Failed to initialize Upstash Redis client:', e);
     return null;
   }
 }
