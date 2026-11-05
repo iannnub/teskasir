@@ -3,6 +3,7 @@ import { eventEmitter } from './events';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { createClient } from '@vercel/kv';
 
 export const DEFAULT_CATEGORIES = ["Coffe", "Coklat", "Makanan", "Camilan"];
 
@@ -66,41 +67,38 @@ export const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 // Check for Vercel KV / Upstash Redis env vars
-const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+function getKVClient() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  try {
+    return createClient({ url, token });
+  } catch (e) {
+    console.error('Failed to initialize Vercel KV client:', e);
+    return null;
+  }
+}
 
 async function kvGet<T>(key: string): Promise<T | null> {
-  if (!KV_URL || !KV_TOKEN) return null;
+  const client = getKVClient();
+  if (!client) return null;
   try {
-    const res = await fetch(`${KV_URL}/get/${key}`, {
-      headers: { Authorization: `Bearer ${KV_TOKEN}` },
-      cache: 'no-store'
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.result) return null;
-    return typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+    const data = await client.get<T>(key);
+    return data ?? null;
   } catch (e) {
-    console.error('KV get error:', e);
+    console.error('Vercel KV get error:', e);
     return null;
   }
 }
 
 async function kvSet<T>(key: string, value: T): Promise<boolean> {
-  if (!KV_URL || !KV_TOKEN) return false;
+  const client = getKVClient();
+  if (!client) return false;
   try {
-    const valStr = JSON.stringify(value);
-    const res = await fetch(`${KV_URL}/set/${key}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${KV_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify([valStr])
-    });
-    return res.ok;
+    await client.set(key, value);
+    return true;
   } catch (e) {
-    console.error('KV set error:', e);
+    console.error('Vercel KV set error:', e);
     return false;
   }
 }
@@ -190,13 +188,9 @@ function writeLocalDB(data: LocalDB) {
 // ==================== EXPORTED STORAGE API ====================
 
 export async function getProducts(): Promise<Product[]> {
-  if (KV_URL && KV_TOKEN) {
-    const cloudProducts = await kvGet<Product[]>('kollabora_products');
-    if (cloudProducts && Array.isArray(cloudProducts) && cloudProducts.length > 0) {
-      return cloudProducts;
-    }
-    await kvSet('kollabora_products', DEFAULT_PRODUCTS);
-    return DEFAULT_PRODUCTS;
+  const cloudProducts = await kvGet<Product[]>('kollabora_products');
+  if (cloudProducts && Array.isArray(cloudProducts) && cloudProducts.length > 0) {
+    return cloudProducts;
   }
 
   const db = readLocalDB();
@@ -206,9 +200,7 @@ export async function getProducts(): Promise<Product[]> {
 export async function saveProducts(products: Product[]): Promise<Product[]> {
   const db = readLocalDB();
   db.products = products;
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_products', products);
-  }
+  await kvSet('kollabora_products', products);
   writeLocalDB(db);
   eventEmitter.broadcast('products_updated', { count: products.length });
   return products;
@@ -222,9 +214,7 @@ export async function saveProduct(product: Product): Promise<Product> {
   } else {
     db.products.push(product);
   }
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_products', db.products);
-  }
+  await kvSet('kollabora_products', db.products);
   writeLocalDB(db);
   eventEmitter.broadcast('products_updated', { id: product.id });
   return product;
@@ -233,22 +223,16 @@ export async function saveProduct(product: Product): Promise<Product> {
 export async function deleteProduct(productId: string): Promise<boolean> {
   const db = readLocalDB();
   db.products = db.products.filter(p => p.id !== productId);
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_products', db.products);
-  }
+  await kvSet('kollabora_products', db.products);
   writeLocalDB(db);
   eventEmitter.broadcast('products_updated', { deleted: productId });
   return true;
 }
 
 export async function getCategories(): Promise<string[]> {
-  if (KV_URL && KV_TOKEN) {
-    const cloudCategories = await kvGet<string[]>('kollabora_categories');
-    if (cloudCategories && Array.isArray(cloudCategories) && cloudCategories.length > 0) {
-      return cloudCategories;
-    }
-    await kvSet('kollabora_categories', DEFAULT_CATEGORIES);
-    return DEFAULT_CATEGORIES;
+  const cloudCategories = await kvGet<string[]>('kollabora_categories');
+  if (cloudCategories && Array.isArray(cloudCategories) && cloudCategories.length > 0) {
+    return cloudCategories;
   }
 
   const db = readLocalDB();
@@ -258,9 +242,7 @@ export async function getCategories(): Promise<string[]> {
 export async function saveCategories(categories: string[]): Promise<string[]> {
   const db = readLocalDB();
   db.categories = categories;
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_categories', categories);
-  }
+  await kvSet('kollabora_categories', categories);
   writeLocalDB(db);
   eventEmitter.broadcast('categories_updated', { categories });
   return categories;
@@ -268,11 +250,9 @@ export async function saveCategories(categories: string[]): Promise<string[]> {
 
 export async function getOrders(guestId?: string): Promise<Transaction[]> {
   let allOrders: Transaction[] = [];
-  if (KV_URL && KV_TOKEN) {
-    const cloudOrders = await kvGet<Transaction[]>('kollabora_orders');
-    if (cloudOrders && Array.isArray(cloudOrders)) {
-      allOrders = cloudOrders;
-    }
+  const cloudOrders = await kvGet<Transaction[]>('kollabora_orders');
+  if (cloudOrders && Array.isArray(cloudOrders)) {
+    allOrders = cloudOrders;
   } else {
     const db = readLocalDB();
     allOrders = db.orders || [];
@@ -303,10 +283,8 @@ export async function saveOrder(order: Transaction): Promise<Transaction> {
     }
   }
 
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_orders', db.orders);
-    await kvSet('kollabora_products', db.products);
-  }
+  await kvSet('kollabora_orders', db.orders);
+  await kvSet('kollabora_products', db.products);
   writeLocalDB(db);
 
   eventEmitter.broadcast('orders_updated', { orderId: order.id });
@@ -317,9 +295,7 @@ export async function saveOrder(order: Transaction): Promise<Transaction> {
 export async function clearOrders(): Promise<boolean> {
   const db = readLocalDB();
   db.orders = [];
-  if (KV_URL && KV_TOKEN) {
-    await kvSet('kollabora_orders', []);
-  }
+  await kvSet('kollabora_orders', []);
   writeLocalDB(db);
   eventEmitter.broadcast('orders_updated', { cleared: true });
   return true;
