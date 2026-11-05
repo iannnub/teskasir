@@ -1,4 +1,5 @@
 import { Product, Transaction } from './types';
+import { eventEmitter } from './events';
 import fs from 'fs';
 import path from 'path';
 
@@ -113,31 +114,35 @@ interface LocalDB {
   orders: Transaction[];
 }
 
-// In-memory fallback
-let memoryDB: LocalDB = {
-  products: JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
-  categories: [...DEFAULT_CATEGORIES],
-  orders: []
-};
-
-function readLocalDB(): LocalDB {
+// In-memory single source of truth initialized once
+let memoryDB: LocalDB = (() => {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return {
+        products: parsed.products && parsed.products.length > 0 ? parsed.products : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
+        categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : [...DEFAULT_CATEGORIES],
+        orders: parsed.orders || []
+      };
     }
   } catch (e) { /* ignore */ }
-  return memoryDB;
-}
 
-function writeLocalDB(data: LocalDB) {
-  memoryDB = data;
+  return {
+    products: JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
+    categories: [...DEFAULT_CATEGORIES],
+    orders: []
+  };
+})();
+
+// Non-blocking async persist
+function persistLocalDB() {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (e) { /* serverless readonly filesystem fallback to memory */ }
+    fs.promises.writeFile(DATA_FILE, JSON.stringify(memoryDB, null, 2), 'utf-8').catch(() => {});
+  } catch (e) { /* serverless readonly filesystem fallback */ }
 }
 
 // ==================== EXPORTED STORAGE API ====================
@@ -148,27 +153,24 @@ export async function getProducts(): Promise<Product[]> {
     if (cloudProducts && Array.isArray(cloudProducts) && cloudProducts.length > 0) {
       return cloudProducts;
     }
-    // Seed default if empty
     await kvSet('kollabora_products', DEFAULT_PRODUCTS);
     return DEFAULT_PRODUCTS;
   }
 
-  const local = readLocalDB();
-  if (!local.products || local.products.length === 0) {
-    local.products = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
-    writeLocalDB(local);
+  if (!memoryDB.products || memoryDB.products.length === 0) {
+    memoryDB.products = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+    persistLocalDB();
   }
-  return local.products;
+  return memoryDB.products;
 }
 
 export async function saveProducts(products: Product[]): Promise<Product[]> {
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_products', products);
-    return products;
   }
-  const local = readLocalDB();
-  local.products = products;
-  writeLocalDB(local);
+  memoryDB.products = products;
+  persistLocalDB();
+  eventEmitter.broadcast('products_updated', { count: products.length });
   return products;
 }
 
@@ -200,22 +202,21 @@ export async function getCategories(): Promise<string[]> {
     await kvSet('kollabora_categories', DEFAULT_CATEGORIES);
     return DEFAULT_CATEGORIES;
   }
-  const local = readLocalDB();
-  if (!local.categories || local.categories.length === 0) {
-    local.categories = [...DEFAULT_CATEGORIES];
-    writeLocalDB(local);
+
+  if (!memoryDB.categories || memoryDB.categories.length === 0) {
+    memoryDB.categories = [...DEFAULT_CATEGORIES];
+    persistLocalDB();
   }
-  return local.categories;
+  return memoryDB.categories;
 }
 
 export async function saveCategories(categories: string[]): Promise<string[]> {
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_categories', categories);
-    return categories;
   }
-  const local = readLocalDB();
-  local.categories = categories;
-  writeLocalDB(local);
+  memoryDB.categories = categories;
+  persistLocalDB();
+  eventEmitter.broadcast('categories_updated', { categories });
   return categories;
 }
 
@@ -227,8 +228,7 @@ export async function getOrders(guestId?: string): Promise<Transaction[]> {
       allOrders = cloudOrders;
     }
   } else {
-    const local = readLocalDB();
-    allOrders = local.orders || [];
+    allOrders = memoryDB.orders || [];
   }
 
   if (guestId) {
@@ -239,19 +239,14 @@ export async function getOrders(guestId?: string): Promise<Transaction[]> {
 
 export async function saveOrder(order: Transaction): Promise<Transaction> {
   // 1. Save order
-  let allOrders: Transaction[] = [];
   if (KV_URL && KV_TOKEN) {
-    const cloudOrders = await kvGet<Transaction[]>('kollabora_orders');
-    if (cloudOrders && Array.isArray(cloudOrders)) allOrders = cloudOrders;
-    allOrders.unshift(order);
-    await kvSet('kollabora_orders', allOrders);
-  } else {
-    const local = readLocalDB();
-    if (!local.orders) local.orders = [];
-    local.orders.unshift(order);
-    writeLocalDB(local);
-    allOrders = local.orders;
+    const cloudOrders = await kvGet<Transaction[]>('kollabora_orders') || [];
+    cloudOrders.unshift(order);
+    await kvSet('kollabora_orders', cloudOrders);
   }
+  if (!memoryDB.orders) memoryDB.orders = [];
+  memoryDB.orders.unshift(order);
+  persistLocalDB();
 
   // 2. Automatically deduct stock
   if (order.items && Array.isArray(order.items)) {
@@ -275,16 +270,16 @@ export async function saveOrder(order: Transaction): Promise<Transaction> {
     }
   }
 
+  eventEmitter.broadcast('orders_updated', { orderId: order.id });
   return order;
 }
 
 export async function clearOrders(): Promise<boolean> {
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_orders', []);
-    return true;
   }
-  const local = readLocalDB();
-  local.orders = [];
-  writeLocalDB(local);
+  memoryDB.orders = [];
+  persistLocalDB();
+  eventEmitter.broadcast('orders_updated', { cleared: true });
   return true;
 }

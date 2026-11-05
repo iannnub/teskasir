@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import useSWR, { mutate } from 'swr';
 import { Product, ProductVariant, Transaction } from '@/lib/types';
@@ -22,15 +22,21 @@ export default function AdminPage() {
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [loginError, setLoginError] = useState<string>('');
 
-  // SWR Data Fetching (Revalidates on focus and auto refresh)
+  // SWR Data Fetching with Fast Revalidation & Deduping
   const { data: products = [], error: prodError } = useSWR<Product[]>('/api/products', fetcher, {
-    refreshInterval: 4000
+    refreshInterval: 2500,
+    revalidateOnFocus: true,
+    dedupingInterval: 400
   });
   const { data: categories = [], error: catError } = useSWR<string[]>('/api/categories', fetcher, {
-    refreshInterval: 6000
+    refreshInterval: 4000,
+    revalidateOnFocus: true,
+    dedupingInterval: 1000
   });
   const { data: orders = [], error: orderError } = useSWR<Transaction[]>('/api/orders', fetcher, {
-    refreshInterval: 4000
+    refreshInterval: 2500,
+    revalidateOnFocus: true,
+    dedupingInterval: 400
   });
 
   // Filters & Search
@@ -61,16 +67,56 @@ export default function AdminPage() {
 
   const showNotice = (msg: string) => {
     setActionNotice(msg);
-    setTimeout(() => setActionNotice(null), 3500);
+    setTimeout(() => setActionNotice(null), 3000);
   };
 
+  // Check login on mount + Setup SSE & BroadcastChannel for 0-delay real-time
   useEffect(() => {
     const sessionAuth = sessionStorage.getItem('kollabora_admin_auth');
     if (sessionAuth === 'true') {
       setIsAuthenticated(true);
     }
     setAuthChecked(true);
+
+    // 1. Cross-tab BroadcastChannel for 0ms same-browser sync
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('kollabora_sync_channel');
+      bc.onmessage = (ev) => {
+        if (ev.data?.type === 'products') mutate('/api/products');
+        if (ev.data?.type === 'orders') mutate('/api/orders');
+        if (ev.data?.type === 'categories') mutate('/api/categories');
+      };
+    } catch (e) {}
+
+    // 2. Server-Sent Events (SSE) for instant cross-device sync (<50ms)
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/events');
+      eventSource.addEventListener('products_updated', () => {
+        mutate('/api/products');
+      });
+      eventSource.addEventListener('orders_updated', () => {
+        mutate('/api/orders');
+      });
+      eventSource.addEventListener('categories_updated', () => {
+        mutate('/api/categories');
+      });
+    } catch (e) {}
+
+    return () => {
+      if (bc) bc.close();
+      if (eventSource) eventSource.close();
+    };
   }, []);
+
+  const broadcastLocalChange = (type: string) => {
+    try {
+      const bc = new BroadcastChannel('kollabora_sync_channel');
+      bc.postMessage({ type });
+      bc.close();
+    } catch (e) {}
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +139,6 @@ export default function AdminPage() {
   const filteredOrders = useMemo(() => {
     let result = [...orders];
 
-    // Filter by Time preset
     if (timeFilter !== 'all') {
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -121,7 +166,6 @@ export default function AdminPage() {
       });
     }
 
-    // Filter by specific Date Range if set
     if (startDate && endDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
@@ -134,7 +178,6 @@ export default function AdminPage() {
       });
     }
 
-    // Search query
     if (txSearch.trim()) {
       const q = txSearch.toLowerCase();
       result = result.filter(o =>
@@ -146,7 +189,6 @@ export default function AdminPage() {
     return result;
   }, [orders, timeFilter, startDate, endDate, txSearch]);
 
-  // Total Unit Stock calculation
   const totalStockCount = useMemo(() => {
     return products.reduce((sum, p) => {
       const variantsSum = p.variants?.reduce((vSum, v) => vSum + (v.stock || 0), 0) || 0;
@@ -154,12 +196,10 @@ export default function AdminPage() {
     }, 0);
   }, [products]);
 
-  // Total Revenue calculation
   const totalRevenue = useMemo(() => {
     return filteredOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
   }, [filteredOrders]);
 
-  // Product Filter
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       if (selectedCategory !== 'Semua' && p.category.toLowerCase() !== selectedCategory.toLowerCase()) {
@@ -173,7 +213,6 @@ export default function AdminPage() {
     });
   }, [products, selectedCategory, productSearch]);
 
-  // Open Product Modal for Create
   const handleOpenAddProduct = () => {
     setEditingProductId(null);
     setFormName('');
@@ -187,7 +226,6 @@ export default function AdminPage() {
     setIsProductModalOpen(true);
   };
 
-  // Open Product Modal for Edit
   const handleOpenEditProduct = (prod: Product) => {
     setEditingProductId(prod.id);
     setFormName(prod.name);
@@ -200,7 +238,6 @@ export default function AdminPage() {
     setIsProductModalOpen(true);
   };
 
-  // Image Upload handler to Data URL
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -214,12 +251,10 @@ export default function AdminPage() {
     }
   };
 
-  // Add Variant Row
   const handleAddVariantRow = () => {
     setFormVariants(prev => [...prev, { size: 'Regular', price: 20000, stock: 10 }]);
   };
 
-  // Update Variant Row
   const handleUpdateVariant = (index: number, field: keyof ProductVariant, value: any) => {
     setFormVariants(prev => {
       const updated = [...prev];
@@ -228,7 +263,6 @@ export default function AdminPage() {
     });
   };
 
-  // Remove Variant Row
   const handleRemoveVariant = (index: number) => {
     if (formVariants.length <= 1) {
       alert('Minimal harus memiliki 1 varian menu!');
@@ -237,7 +271,7 @@ export default function AdminPage() {
     setFormVariants(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Save Product (Create or Update)
+  // Save Product with 0ms Optimistic UI Update
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
@@ -266,6 +300,18 @@ export default function AdminPage() {
       variants: cleanedVariants
     };
 
+    // 1. Instant Optimistic UI (0ms delay)
+    setIsProductModalOpen(false);
+    showNotice(editingProductId ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
+
+    const optimisticProducts = editingProductId
+      ? products.map(p => p.id === editingProductId ? productPayload : p)
+      : [...products, productPayload];
+
+    mutate('/api/products', optimisticProducts, false);
+    broadcastLocalChange('products');
+
+    // 2. Background Sync
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
@@ -273,28 +319,35 @@ export default function AdminPage() {
         body: JSON.stringify(productPayload)
       });
       if (!res.ok) throw new Error('Gagal menyimpan produk');
-      await mutate('/api/products');
-      setIsProductModalOpen(false);
-      showNotice(editingProductId ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
+      mutate('/api/products');
     } catch (err: any) {
-      alert('Terjadi kesalahan: ' + err.message);
+      alert('Gagal menyimpan perubahan ke server: ' + err.message);
+      mutate('/api/products');
     }
   };
 
-  // Delete Product
+  // Delete Product with 0ms Optimistic UI Update
   const handleDeleteProduct = async (productId: string, productName: string) => {
     if (!confirm(`Yakin ingin menghapus menu "${productName}"?`)) return;
+
+    // 1. Instant Optimistic UI (0ms delay)
+    const optimisticProducts = products.filter(p => p.id !== productId);
+    mutate('/api/products', optimisticProducts, false);
+    broadcastLocalChange('products');
+    showNotice(`Menu "${productName}" dihapus.`);
+
+    // 2. Background Sync
     try {
       const res = await fetch(`/api/products?id=${productId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal menghapus produk');
-      await mutate('/api/products');
-      showNotice(`Menu "${productName}" berhasil dihapus.`);
+      mutate('/api/products');
     } catch (err: any) {
-      alert('Gagal menghapus: ' + err.message);
+      alert('Gagal menghapus dari server: ' + err.message);
+      mutate('/api/products');
     }
   };
 
-  // Add Category
+  // Add Category with 0ms Optimistic Update
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newCategoryName.trim();
@@ -306,6 +359,11 @@ export default function AdminPage() {
     }
 
     const updatedCategories = [...categories, name];
+    setNewCategoryName('');
+    mutate('/api/categories', updatedCategories, false);
+    broadcastLocalChange('categories');
+    showNotice(`Kategori "${name}" ditambahkan.`);
+
     try {
       const res = await fetch('/api/categories', {
         method: 'POST',
@@ -313,15 +371,14 @@ export default function AdminPage() {
         body: JSON.stringify(updatedCategories)
       });
       if (!res.ok) throw new Error('Gagal menambahkan kategori');
-      await mutate('/api/categories');
-      setNewCategoryName('');
-      showNotice(`Kategori "${name}" berhasil ditambahkan.`);
+      mutate('/api/categories');
     } catch (err: any) {
       alert(err.message);
+      mutate('/api/categories');
     }
   };
 
-  // Delete Category
+  // Delete Category with 0ms Optimistic Update
   const handleDeleteCategory = async (catToDelete: string) => {
     const usedCount = products.filter(p => p.category.toLowerCase() === catToDelete.toLowerCase()).length;
     let msg = `Hapus kategori "${catToDelete}"?`;
@@ -331,6 +388,10 @@ export default function AdminPage() {
     if (!confirm(msg)) return;
 
     const updatedCategories = categories.filter(c => c.toLowerCase() !== catToDelete.toLowerCase());
+    mutate('/api/categories', updatedCategories, false);
+    broadcastLocalChange('categories');
+    showNotice(`Kategori "${catToDelete}" dihapus.`);
+
     try {
       const res = await fetch('/api/categories', {
         method: 'POST',
@@ -338,31 +399,34 @@ export default function AdminPage() {
         body: JSON.stringify(updatedCategories)
       });
       if (!res.ok) throw new Error('Gagal menghapus kategori');
-      await mutate('/api/categories');
-      showNotice(`Kategori "${catToDelete}" dihapus.`);
+      mutate('/api/categories');
     } catch (err: any) {
       alert(err.message);
+      mutate('/api/categories');
     }
   };
 
-  // Reset Categories to Default
   const handleResetCategories = async () => {
     if (!confirm('Pulihkan daftar kategori ke default (Coffe, Coklat, Makanan, Camilan)?')) return;
     const defaults = ["Coffe", "Coklat", "Makanan", "Camilan"];
+    mutate('/api/categories', defaults, false);
+    broadcastLocalChange('categories');
+    showNotice('Kategori dipulihkan ke default.');
+
     try {
       await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(defaults)
       });
-      await mutate('/api/categories');
-      showNotice('Kategori dipulihkan ke default.');
+      mutate('/api/categories');
     } catch (err: any) {
       alert(err.message);
+      mutate('/api/categories');
     }
   };
 
-  // Simulate Test Order
+  // Simulate Test Order with 0ms Optimistic Update
   const handleSimulateOrder = async () => {
     const randomCustomer = ['Rian Pratama', 'Siti Rahma', 'Budi Santoso', 'Dewi Lestari', 'Agus Setiawan'][Math.floor(Math.random() * 5)];
     const randomTable = String(Math.floor(Math.random() * 12) + 1);
@@ -389,6 +453,10 @@ export default function AdminPage() {
       change_due: 0
     };
 
+    mutate('/api/orders', [mockOrder, ...orders], false);
+    broadcastLocalChange('orders');
+    showNotice(`Pesanan #${mockOrder.id} (${randomCustomer}) dibuat!`);
+
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -396,24 +464,27 @@ export default function AdminPage() {
         body: JSON.stringify(mockOrder)
       });
       if (!res.ok) throw new Error('Gagal simulasi order');
-      await mutate('/api/orders');
-      await mutate('/api/products');
-      showNotice(`Simulasi pesanan #${mockOrder.id} (${randomCustomer}) berhasil dibuat!`);
+      mutate('/api/orders');
+      mutate('/api/products');
     } catch (err: any) {
       alert(err.message);
+      mutate('/api/orders');
     }
   };
 
-  // Clear All Transactions
   const handleClearAllOrders = async () => {
     if (!confirm('Peringatan: Apakah Anda yakin ingin MENGHAPUS SEMUA riwayat transaksi? Tindakan ini tidak dapat dibatalkan.')) return;
+    mutate('/api/orders', [], false);
+    broadcastLocalChange('orders');
+    showNotice('Semua riwayat transaksi dibersihkan.');
+
     try {
       const res = await fetch('/api/orders', { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal membersihkan transaksi');
-      await mutate('/api/orders');
-      showNotice('Semua riwayat transaksi berhasil dibersihkan.');
+      mutate('/api/orders');
     } catch (err: any) {
       alert(err.message);
+      mutate('/api/orders');
     }
   };
 
@@ -433,7 +504,7 @@ export default function AdminPage() {
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-800 border border-[#d4af37]/30 text-[#d4af37] mb-3">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">KollaBora Cafe</h1>
@@ -497,7 +568,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-black text-zinc-100 pb-16">
       {/* Toast Notice */}
       {actionNotice && (
-        <div className="fixed top-4 right-4 z-50 bg-[#d4af37] text-black px-4 py-2.5 rounded-xl font-bold text-xs shadow-xl flex items-center space-x-2">
+        <div className="fixed top-4 right-4 z-50 bg-[#d4af37] text-black px-4 py-2.5 rounded-xl font-bold text-xs shadow-xl flex items-center space-x-2 transition-all">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
           </svg>
@@ -547,7 +618,7 @@ export default function AdminPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">Ringkasan Kinerja Kasir</h2>
-              <p className="text-xs text-zinc-400">Data sinkronisasi realtime dengan seluruh perangkat kasir & pelanggan</p>
+              <p className="text-xs text-zinc-400">Sinkronisasi instan realtime tanpa delay ke seluruh perangkat pelanggan</p>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -632,7 +703,7 @@ export default function AdminPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">Katalog & Manajemen Stok Menu</h2>
-              <p className="text-xs text-zinc-400">Tambah menu baru, edit varian harga, dan atur stok realtime</p>
+              <p className="text-xs text-zinc-400">Perubahan data menu langsung sinkron ke seluruh user seketika</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
