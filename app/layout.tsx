@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const viewport: Viewport = {
-  themeColor: '#000000',
+  themeColor: '#f8f6f2',
   width: 'device-width',
   initialScale: 1
 };
@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   description: 'Pesan menu kopi espresso, minuman coklat, pasta carbonara, dan camilan nikmat khas Kollabora Cafe di Surabaya.',
   keywords: ['kollabora cafe', 'cafe surabaya', 'kopi surabaya', 'kasir cafe', 'thematic cafe'],
   authors: [{ name: 'Kollabora Cafe' }],
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: 'KOLLABORA - The Best Thematic Cafe & Restaurant',
     description: 'Pesan menu kopi espresso, coklat spesial, makanan, dan camilan nikmat khas Kollabora Cafe.',
@@ -64,12 +69,13 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="bg-black text-zinc-100 antialiased selection:bg-[#d4af37] selection:text-black">
+      <body className="min-h-screen bg-[#f8f6f2] text-stone-900 antialiased selection:bg-[#d4af37] selection:text-black">
         {children}
       </body>
     </html>

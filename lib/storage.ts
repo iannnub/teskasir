@@ -114,35 +114,45 @@ interface LocalDB {
   orders: Transaction[];
 }
 
-// In-memory single source of truth initialized once
-let memoryDB: LocalDB = (() => {
+function readLocalDB(): LocalDB {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       return {
-        products: parsed.products && parsed.products.length > 0 ? parsed.products : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
-        categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : [...DEFAULT_CATEGORIES],
-        orders: parsed.orders || []
+        products: Array.isArray(parsed.products) && parsed.products.length > 0
+          ? parsed.products
+          : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
+        categories: Array.isArray(parsed.categories) && parsed.categories.length > 0
+          ? parsed.categories
+          : [...DEFAULT_CATEGORIES],
+        orders: Array.isArray(parsed.orders)
+          ? parsed.orders
+          : []
       };
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error('Error reading local db:', e);
+  }
 
-  return {
+  const initial: LocalDB = {
     products: JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)),
     categories: [...DEFAULT_CATEGORIES],
     orders: []
   };
-})();
+  writeLocalDB(initial);
+  return initial;
+}
 
-// Non-blocking async persist
-function persistLocalDB() {
+function writeLocalDB(data: LocalDB) {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    fs.promises.writeFile(DATA_FILE, JSON.stringify(memoryDB, null, 2), 'utf-8').catch(() => {});
-  } catch (e) { /* serverless readonly filesystem fallback */ }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Error writing local db:', e);
+  }
 }
 
 // ==================== EXPORTED STORAGE API ====================
@@ -157,39 +167,45 @@ export async function getProducts(): Promise<Product[]> {
     return DEFAULT_PRODUCTS;
   }
 
-  if (!memoryDB.products || memoryDB.products.length === 0) {
-    memoryDB.products = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
-    persistLocalDB();
-  }
-  return memoryDB.products;
+  const db = readLocalDB();
+  return db.products;
 }
 
 export async function saveProducts(products: Product[]): Promise<Product[]> {
+  const db = readLocalDB();
+  db.products = products;
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_products', products);
   }
-  memoryDB.products = products;
-  persistLocalDB();
+  writeLocalDB(db);
   eventEmitter.broadcast('products_updated', { count: products.length });
   return products;
 }
 
 export async function saveProduct(product: Product): Promise<Product> {
-  const products = await getProducts();
-  const index = products.findIndex(p => p.id === product.id);
+  const db = readLocalDB();
+  const index = db.products.findIndex(p => p.id === product.id);
   if (index !== -1) {
-    products[index] = { ...products[index], ...product };
+    db.products[index] = { ...db.products[index], ...product };
   } else {
-    products.push(product);
+    db.products.push(product);
   }
-  await saveProducts(products);
+  if (KV_URL && KV_TOKEN) {
+    await kvSet('kollabora_products', db.products);
+  }
+  writeLocalDB(db);
+  eventEmitter.broadcast('products_updated', { id: product.id });
   return product;
 }
 
 export async function deleteProduct(productId: string): Promise<boolean> {
-  const products = await getProducts();
-  const filtered = products.filter(p => p.id !== productId);
-  await saveProducts(filtered);
+  const db = readLocalDB();
+  db.products = db.products.filter(p => p.id !== productId);
+  if (KV_URL && KV_TOKEN) {
+    await kvSet('kollabora_products', db.products);
+  }
+  writeLocalDB(db);
+  eventEmitter.broadcast('products_updated', { deleted: productId });
   return true;
 }
 
@@ -203,19 +219,17 @@ export async function getCategories(): Promise<string[]> {
     return DEFAULT_CATEGORIES;
   }
 
-  if (!memoryDB.categories || memoryDB.categories.length === 0) {
-    memoryDB.categories = [...DEFAULT_CATEGORIES];
-    persistLocalDB();
-  }
-  return memoryDB.categories;
+  const db = readLocalDB();
+  return db.categories;
 }
 
 export async function saveCategories(categories: string[]): Promise<string[]> {
+  const db = readLocalDB();
+  db.categories = categories;
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_categories', categories);
   }
-  memoryDB.categories = categories;
-  persistLocalDB();
+  writeLocalDB(db);
   eventEmitter.broadcast('categories_updated', { categories });
   return categories;
 }
@@ -228,7 +242,8 @@ export async function getOrders(guestId?: string): Promise<Transaction[]> {
       allOrders = cloudOrders;
     }
   } else {
-    allOrders = memoryDB.orders || [];
+    const db = readLocalDB();
+    allOrders = db.orders || [];
   }
 
   if (guestId) {
@@ -238,48 +253,42 @@ export async function getOrders(guestId?: string): Promise<Transaction[]> {
 }
 
 export async function saveOrder(order: Transaction): Promise<Transaction> {
-  // 1. Save order
-  if (KV_URL && KV_TOKEN) {
-    const cloudOrders = await kvGet<Transaction[]>('kollabora_orders') || [];
-    cloudOrders.unshift(order);
-    await kvSet('kollabora_orders', cloudOrders);
-  }
-  if (!memoryDB.orders) memoryDB.orders = [];
-  memoryDB.orders.unshift(order);
-  persistLocalDB();
+  const db = readLocalDB();
+  if (!db.orders) db.orders = [];
+  db.orders.unshift(order);
 
-  // 2. Automatically deduct stock
+  // Automatically deduct stock
   if (order.items && Array.isArray(order.items)) {
-    const products = await getProducts();
-    let changed = false;
-
     for (const item of order.items) {
-      const prod = products.find(p => p.id === item.product_id || p.name === item.product_name);
+      const prod = db.products.find(p => p.id === item.product_id || p.name === item.product_name);
       if (prod && prod.variants) {
         const variant = prod.variants.find(v => v.size === item.variant_size);
         if (variant && variant.stock >= item.quantity) {
           variant.stock -= item.quantity;
           variant.label = variant.stock === 0 ? 'Habis' : (variant.stock <= 5 ? `Sisa ${variant.stock} unit` : 'Ready Stock');
-          changed = true;
         }
       }
     }
-
-    if (changed) {
-      await saveProducts(products);
-    }
   }
 
+  if (KV_URL && KV_TOKEN) {
+    await kvSet('kollabora_orders', db.orders);
+    await kvSet('kollabora_products', db.products);
+  }
+  writeLocalDB(db);
+
   eventEmitter.broadcast('orders_updated', { orderId: order.id });
+  eventEmitter.broadcast('products_updated', { deducted: true });
   return order;
 }
 
 export async function clearOrders(): Promise<boolean> {
+  const db = readLocalDB();
+  db.orders = [];
   if (KV_URL && KV_TOKEN) {
     await kvSet('kollabora_orders', []);
   }
-  memoryDB.orders = [];
-  persistLocalDB();
+  writeLocalDB(db);
   eventEmitter.broadcast('orders_updated', { cleared: true });
   return true;
 }

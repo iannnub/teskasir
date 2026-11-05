@@ -281,15 +281,18 @@ export default function AdminPage() {
 
     const cleanedVariants = formVariants.map(v => ({
       ...v,
-      price: Number(v.price) || 0,
-      stock: Number(v.stock) || 0,
+      size: (v.size || 'Regular').trim(),
+      price: Math.max(0, Number(v.price) || 0),
+      stock: Math.max(0, Number(v.stock) || 0),
       label: Number(v.stock) === 0 ? 'Habis' : (Number(v.stock) <= 5 ? `Sisa ${v.stock} unit` : 'Ready Stock')
     }));
 
     const allOutOfStock = cleanedVariants.every(v => v.stock === 0);
+    const safeSlug = formName.trim().toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'menu';
+    const finalId = editingProductId || `${safeSlug}-${Date.now().toString(36)}`;
 
     const productPayload: Product = {
-      id: editingProductId || formName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 10000),
+      id: finalId,
       name: formName.trim().toUpperCase(),
       category: formCategory || 'Coffe',
       description: formDesc.trim(),
@@ -304,14 +307,19 @@ export default function AdminPage() {
     setIsProductModalOpen(false);
     showNotice(editingProductId ? 'Produk berhasil diperbarui!' : 'Produk baru berhasil ditambahkan!');
 
+    // Ensure filter reveals the new/updated product immediately
+    if (selectedCategory !== 'Semua' && selectedCategory.toLowerCase() !== (formCategory || '').toLowerCase()) {
+      setSelectedCategory('Semua');
+    }
+
     const optimisticProducts = editingProductId
       ? products.map(p => p.id === editingProductId ? productPayload : p)
-      : [...products, productPayload];
+      : [...products.filter(p => p.id !== finalId), productPayload];
 
     mutate('/api/products', optimisticProducts, false);
     broadcastLocalChange('products');
 
-    // 2. Background Sync
+    // 2. Background Sync to Server
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
@@ -319,7 +327,16 @@ export default function AdminPage() {
         body: JSON.stringify(productPayload)
       });
       if (!res.ok) throw new Error('Gagal menyimpan produk');
-      mutate('/api/products');
+      const savedFromServer = await res.json();
+      mutate('/api/products', (current: Product[] = []) => {
+        const idx = current.findIndex(p => p.id === finalId);
+        if (idx !== -1) {
+          const clone = [...current];
+          clone[idx] = savedFromServer;
+          return clone;
+        }
+        return [...current, savedFromServer];
+      }, false);
     } catch (err: any) {
       alert('Gagal menyimpan perubahan ke server: ' + err.message);
       mutate('/api/products');
