@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const products = await getProducts();
-    const envKeys = Object.keys(process.env).filter(k => 
-      k.includes('UPSTASH') || k.includes('REDIS') || k.includes('KV')
-    ).join(',');
+    const envKeys = Object.keys(process.env)
+      .filter(k => !k.startsWith('npm_') && !k.startsWith('__'))
+      .join(',');
     return NextResponse.json(products, {
       headers: {
         'x-env-keys': envKeys || 'none'
